@@ -1,5 +1,4 @@
 import os
-import whisper  # keep stub or load real model here
 from elevenlabslib import ElevenLabsUser
 import time
 
