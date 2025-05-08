@@ -20,10 +20,10 @@
   <audio id="tts-player" controls style="display:none;"></audio>
 
   <script>
-    // 1) SEND TEXT MESSAGES
+    // === 1) SEND TEXT MESSAGE & PLAY TTS ===
     async function sendMessage() {
       const input = document.getElementById("user-input");
-      const text = input.value.trim();
+      const text  = input.value.trim();
       if (!text) return;
 
       // Show user text
@@ -31,7 +31,7 @@
       log.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
       input.value = "";
 
-      // Send to backend
+      // 1a) send to /api/message
       const res = await fetch("/api/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -43,23 +43,24 @@
       log.innerHTML += `<div><strong>BOS:</strong> ${reply}</div>`;
       log.scrollTop = log.scrollHeight;
 
-      // Trigger TTS
+      // 1b) call TTS
       const ttsRes = await fetch("/api/speak", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: reply })
       });
       const { url } = await ttsRes.json();
+
+      // Play the MP3
       const player = document.getElementById("tts-player");
       player.src = url;
       player.style.display = "block";
       player.play();
     }
-
     document.getElementById("send-btn")
             .addEventListener("click", sendMessage);
 
-    // 2) RECORD & TRANSCRIBE
+    // === 2) RECORD & TRANSCRIBE ===
     let recorder, chunks = [];
     const recordBtn = document.getElementById("record-btn");
 
@@ -68,12 +69,16 @@
         recorder.stop();
         recordBtn.textContent = "🎤 Record";
         recordBtn.dataset.recording = "false";
+
       } else {
+        // ask for mic permission
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         recorder = new MediaRecorder(stream);
         chunks = [];
+
         recorder.ondataavailable = e => chunks.push(e.data);
         recorder.onstop = async () => {
+          // send blob to /api/transcribe
           const blob = new Blob(chunks, { type: 'audio/wav' });
           const form = new FormData();
           form.append('file', blob, 'audio.wav');
@@ -81,6 +86,7 @@
           const { text } = await res.json();
           document.getElementById("user-input").value = text;
         };
+
         recorder.start();
         recordBtn.dataset.recording = "true";
         recordBtn.textContent = "⏹️ Stop";
