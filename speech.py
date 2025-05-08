@@ -1,14 +1,12 @@
 import os
-import whisper
-from elevenlabslib import ElevenLabsUser
+# whisper import is disabled for now so the server can start quickly
+# import whisper
+# from elevenlabslib import ElevenLabsUser
 
-# Load Whisper model once
-model = whisper.load_model("base")
-
+model = None
 def transcribe_audio(audio_file):
-    """Use Whisper to convert audio to text."""
-    result = model.transcribe(audio_file)
-    return result["text"]
+    """Placeholder until Whisper is fully integrated."""
+    return "[transcription stub]"
 
 def speak_text(text):
     """Use ElevenLabs to convert text to speech and return an audio URL."""
