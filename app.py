@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import openai
 
 # Helpers
-from memory import log_message
+from memory import log_message, load_memory
 from search import intelligent_search
 from speech import transcribe_audio, speak_text
 
@@ -32,22 +32,27 @@ def index():
 @app.route("/api/message", methods=["POST"])
 def message():
     user_text = request.json.get("text", "").strip()
-    # Log user message
+    # 1) Log the user message
     log_message("user", user_text)
 
-    # Build or retrieve chat history in session
-    session.setdefault("chat", [SYSTEM_PROMPT])
-    session["chat"].append({"role": "user", "content": user_text})
+    # 2) Build chat history: system prompt + recent memory + this new user message
+    chat_history = [SYSTEM_PROMPT]
+    memories = load_memory(limit=20)             # load last 20 lines
+    chat_history.extend(memories)
+    chat_history.append({"role": "user", "content": user_text})
 
-    # Ask OpenAI
-    resp = openai.ChatCompletion.create(
-        model="gpt-4o-mini",
-        messages=session["chat"]
-    )
-    bot_text = resp.choices[0].message.content
+    # 3) Ask OpenAI
+    try:
+        resp = openai.ChatCompletion.create(
+            model="gpt-4o-mini",
+            messages=chat_history
+        )
+        bot_text = resp.choices[0].message.content
+    except Exception as e:
+        app.logger.error(f"OpenAI error: {e}")
+        bot_text = "⚠️ Sorry, I had trouble thinking. Please try again."
 
-    # Save and return
-    session["chat"].append({"role": "assistant", "content": bot_text})
+    # 4) Log and return the assistant reply
     log_message("assistant", bot_text)
     return jsonify({"reply": bot_text})
 
