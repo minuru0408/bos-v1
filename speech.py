@@ -1,17 +1,34 @@
 import os
-# whisper import is disabled for now so the server can start quickly
-# import whisper
-# from elevenlabslib import ElevenLabsUser
+import whisper  # keep stub or load real model here
+from elevenlabslib import ElevenLabsUser
+import time
 
-model = None
+model = None  # stub, or whisper.load_model("base")
+
 def transcribe_audio(audio_file):
-    """Placeholder until Whisper is fully integrated."""
     return "[transcription stub]"
 
 def speak_text(text):
-    """Use ElevenLabs to convert text to speech and return an audio URL."""
-    user  = ElevenLabsUser(os.getenv("ELEVENLABS_API_KEY"))
-    voice = user.get_voice_by_name("George")
+    """
+    Generate a TTS mp3 via ElevenLabs and return its static URL.
+    Uses the ELEVENLABS_VOICE_NAME env var (defaulting to "George").
+    """
+    # 1) Initialize ElevenLabs user
+    user = ElevenLabsUser(os.getenv("ELEVENLABS_API_KEY"))
+
+    # 2) Pick the voice from env (fallback to George)
+    voice_name = os.getenv("ELEVENLABS_VOICE_NAME", "George")
+    voice = user.get_voice_by_name(voice_name)
+
+    # 3) Generate audio bytes
     audio_bytes = voice.generate_audio_bytes(text)
-    # TODO: save bytes to a temp file or static path, return its URL
-    return "/static/tts_output.mp3"
+
+    # 4) Save to static/tts folder
+    filename = f"tts_{int(time.time() * 1000)}.mp3"
+    filepath = os.path.join("static", "tts", filename)
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    with open(filepath, "wb") as f:
+        f.write(audio_bytes)
+
+    # 5) Return the URL your front-end can fetch
+    return f"/static/tts/{filename}"
