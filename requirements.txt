@@ -1,0 +1,9 @@
+Flask
+python-dotenv
+openai
+gspread
+oauth2client
+google-api-python-client
+elevenlabslib
+requests
+openai-whisper

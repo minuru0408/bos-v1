@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BOS v1</title>
+</head>
+<body>
+  <h1>B.O.S. v1</h1>
+  <div id="chat-log" style="border:1px solid #ccc; padding:10px; height:300px; overflow:auto;"></div>
+  <input id="user-input" type="text" placeholder="Type a message..." style="width:80%;">
+  <button id="send-btn">Send</button>
+  <script>
+    // Simple JS to send text messages
+    document.getElementById("send-btn").onclick = async () => {
+      const input = document.getElementById("user-input");
+      const text = input.value.trim();
+      if (!text) return;
+      // Show user text
+      const log = document.getElementById("chat-log");
+      log.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
+      input.value = "";
+      // Call backend
+      const res = await fetch("/api/message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text })
+      });
+      const { reply } = await res.json();
+      log.innerHTML += `<div><strong>BOS:</strong> ${reply}</div>`;
+      log.scrollTop = log.scrollHeight;
+    };
+  </script>
+</body>
+</html>
