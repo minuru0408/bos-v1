@@ -6,29 +6,86 @@
 </head>
 <body>
   <h1>B.O.S. v1</h1>
-  <div id="chat-log" style="border:1px solid #ccc; padding:10px; height:300px; overflow:auto;"></div>
-  <input id="user-input" type="text" placeholder="Type a message..." style="width:80%;">
+
+  <div id="chat-log"
+       style="border:1px solid #ccc; padding:10px; height:300px; overflow:auto;">
+  </div>
+
+  <input id="user-input"
+         type="text"
+         placeholder="Type a message..."
+         style="width:80%;">
   <button id="send-btn">Send</button>
+  <button id="record-btn">🎤 Record</button>
+  <audio id="tts-player" controls style="display:none;"></audio>
+
   <script>
-    // Simple JS to send text messages
-    document.getElementById("send-btn").onclick = async () => {
+    // 1) SEND TEXT MESSAGES
+    async function sendMessage() {
       const input = document.getElementById("user-input");
       const text = input.value.trim();
       if (!text) return;
+
       // Show user text
       const log = document.getElementById("chat-log");
       log.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
       input.value = "";
-      // Call backend
+
+      // Send to backend
       const res = await fetch("/api/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text })
       });
       const { reply } = await res.json();
+
+      // Show BOS reply
       log.innerHTML += `<div><strong>BOS:</strong> ${reply}</div>`;
       log.scrollTop = log.scrollHeight;
-    };
+
+      // Trigger TTS
+      const ttsRes = await fetch("/api/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: reply })
+      });
+      const { url } = await ttsRes.json();
+      const player = document.getElementById("tts-player");
+      player.src = url;
+      player.style.display = "block";
+      player.play();
+    }
+
+    document.getElementById("send-btn")
+            .addEventListener("click", sendMessage);
+
+    // 2) RECORD & TRANSCRIBE
+    let recorder, chunks = [];
+    const recordBtn = document.getElementById("record-btn");
+
+    recordBtn.addEventListener("click", async () => {
+      if (recordBtn.dataset.recording === "true") {
+        recorder.stop();
+        recordBtn.textContent = "🎤 Record";
+        recordBtn.dataset.recording = "false";
+      } else {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recorder = new MediaRecorder(stream);
+        chunks = [];
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = async () => {
+          const blob = new Blob(chunks, { type: 'audio/wav' });
+          const form = new FormData();
+          form.append('file', blob, 'audio.wav');
+          const res = await fetch('/api/transcribe', { method: 'POST', body: form });
+          const { text } = await res.json();
+          document.getElementById("user-input").value = text;
+        };
+        recorder.start();
+        recordBtn.dataset.recording = "true";
+        recordBtn.textContent = "⏹️ Stop";
+      }
+    });
   </script>
 </body>
 </html>
