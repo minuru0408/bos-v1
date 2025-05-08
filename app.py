@@ -64,5 +64,7 @@ def speak():
     return jsonify({"url": url})
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5001)
+    # Use the PORT env var (set by Render), or default to 5001 locally
+    port = int(os.environ.get("PORT", 5001))
+    app.run(debug=True, host="0.0.0.0", port=port)
 
