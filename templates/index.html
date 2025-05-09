@@ -5,7 +5,7 @@
   <title>B.O.S. v1</title>
   <style>
     body { font-family: sans-serif; padding: 20px; }
-    #chat-log { border:1px solid #ccc; padding:10px; height:200px; overflow:auto; }
+    #chat-log { border:1px solid #ccc; padding:10px; height:200px; overflow:auto; margin-bottom:1em;}
     #user-input { width:70%; padding:0.5em; }
     #send-btn, #record-btn { padding:0.5em 1em; margin-left:0.5em; }
     #tts-player { display:block; margin-top:1em; }
@@ -13,7 +13,6 @@
 </head>
 <body>
   <h1>B.O.S. v1</h1>
-
   <div id="chat-log"></div>
 
   <input id="user-input" type="text" placeholder="Type a message…" />
@@ -22,64 +21,59 @@
 
   <audio id="tts-player" controls style="display:none;"></audio>
 
-  <!-- 1) Include your recording library -->
+  <!-- include the recording helper -->
   <script src="{{ url_for('static', filename='record_audio.js') }}"></script>
-
   <script>
-    // === SEND MESSAGE & TTS ===
+    // === SEND & SPEAK ===
     async function sendMessage() {
       const input = document.getElementById("user-input");
       const text  = input.value.trim();
       if (!text) return;
 
-      // Show user text
       const log = document.getElementById("chat-log");
       log.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
       input.value = "";
 
-      // Send to back-end
-      const res1 = await fetch("/api/message", {
+      // 1) send to backend
+      let res = await fetch("/api/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text })
       });
-      const { reply } = await res1.json();
+      const { reply } = await res.json();
 
-      // Show BOS reply
       log.innerHTML += `<div><strong>BOS:</strong> ${reply}</div>`;
       log.scrollTop = log.scrollHeight;
 
-      // Call TTS
-      const res2 = await fetch("/api/speak", {
+      // 2) get TTS URL
+      res = await fetch("/api/speak", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: reply })
       });
-      const { url } = await res2.json();
+      const { url } = await res.json();
 
-      // Play audio
+      // 3) play it
       const player = document.getElementById("tts-player");
       player.src = url;
       player.style.display = "block";
       player.play();
     }
-
     document.getElementById("send-btn")
             .addEventListener("click", sendMessage);
 
     // === RECORD & TRANSCRIBE ===
-    let listening = false;
-    const btn = document.getElementById("record-btn");
-
-    btn.addEventListener("click", () => {
-      if (!listening) {
-        startRecording();   // from record_audio.js
-        btn.innerText = "⏹️ Stop";
+    let recording = false;
+    const rbtn = document.getElementById("record-btn");
+    rbtn.addEventListener("click", () => {
+      if (!recording) {
+        startRecording();      // from record_audio.js
+        rbtn.textContent = "⏹️ Stop";
       } else {
-        stopRecording();    // from record_audio.js
-        btn.innerText = "🎤 Voice";
+        stopRecording();       // from record_audio.js
+        rbtn.textContent = "🎤 Voice";
       }
-      listening = !listening;
+      recording = !recording;
     });
   </script>
 </body>
