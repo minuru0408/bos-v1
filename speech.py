@@ -1,14 +1,14 @@
 import os
+import openai
 import time
 from elevenlabslib.User import User as ElevenLabsUser
-import openai
 
+# 1) TRANSCRIBE using Whisper API
 def transcribe_audio(audio_file):
     """
-    Use OpenAI’s Whisper API to convert uploaded audio to text.
-    Supports webm, wav, mp3, etc.
+    Convert uploaded audio (wav/webm/mp3) to text via OpenAI Whisper.
+    audio_file is the Flask file object.
     """
-    # audio_file is a Flask FileStorage; we can send it directly
     audio_file.seek(0)
     resp = openai.Audio.transcribe(
         model="whisper-1",
@@ -16,27 +16,23 @@ def transcribe_audio(audio_file):
     )
     return resp["text"]
 
+# 2) SPEAK using ElevenLabs
 def speak_text(text):
     """
-    Generate a TTS mp3 via ElevenLabs and return its static URL.
-    Uses the ELEVENLABS_VOICE_NAME env var (defaulting to "George").
+    Generate a TTS mp3 via ElevenLabs and return its URL path.
+    Uses ELEVENLABS_VOICE_NAME env var (defaults to "George").
     """
-    # 1) Init client
     user = ElevenLabsUser(os.getenv("ELEVENLABS_API_KEY"))
-
-    # 2) Pick voice name from env
     voice_name = os.getenv("ELEVENLABS_VOICE_NAME", "George")
     voice = user.get_voice_by_name(voice_name)
 
-    # 3) Generate audio bytes
     audio_bytes = voice.generate_audio_bytes(text)
 
-    # 4) Save to static/tts
-    filename = f"tts_{int(time.time() * 1000)}.mp3"
+    # save under static/tts so Flask can serve it
+    filename = f"tts_{int(time.time()*1000)}.mp3"
     filepath = os.path.join("static", "tts", filename)
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     with open(filepath, "wb") as f:
         f.write(audio_bytes)
 
-    # 5) Return the URL your front-end can fetch
     return f"/static/tts/{filename}"
