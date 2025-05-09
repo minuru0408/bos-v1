@@ -19,79 +19,22 @@
   <button id="record-btn">🎤 Record</button>
   <audio id="tts-player" controls style="display:none;"></audio>
 
-  <script>
-    // cross-browser getUserMedia
-    function getMicStream(c) {
-      if (navigator.mediaDevices?.getUserMedia) return navigator.mediaDevices.getUserMedia(c);
-      const legacy = navigator.getUserMedia||navigator.webkitGetUserMedia||navigator.mozGetUserMedia;
-      if (legacy) return new Promise((res,rej)=>legacy.call(navigator,c,res,rej));
-      return Promise.reject(new Error("Mic not supported"));
+  <!-- ... inside <head> or just before </body> ... -->
+<script src="{{ url_for('static', filename='record_audio.js') }}"></script>
+<script>
+  let listening = false;
+  const btn = document.getElementById('whisperBtn');
+
+  btn.addEventListener('click', () => {
+    if (!listening) {
+      startRecording();     // from record_audio.js
+      btn.innerText = '⏹️ Stop';
+    } else {
+      stopRecording();      // from record_audio.js
+      btn.innerText = '🎙 Voice';
     }
-
-    // 1) send text & play TTS
-    async function sendMessage() {
-      const input = document.getElementById("user-input");
-      const text  = input.value.trim();
-      if (!text) return;
-      const log = document.getElementById("chat-log");
-      log.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
-      input.value = "";
-
-      let r = await fetch("/api/message", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({text})
-      });
-      let {reply} = await r.json();
-      log.innerHTML += `<div><strong>BOS:</strong> ${reply}</div>`;
-      log.scrollTop = log.scrollHeight;
-
-      r = await fetch("/api/speak", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({text:reply})
-      });
-      const {url} = await r.json();
-      const player = document.getElementById("tts-player");
-      player.src = url;
-      player.style.display = "block";
-      player.play();
-    }
-    document.getElementById("send-btn").addEventListener("click",sendMessage);
-
-    // 2) record & transcribe
-    let recorder, chunks=[];
-    const recordBtn = document.getElementById("record-btn");
-
-    recordBtn.addEventListener("click", async ()=>{
-      if (recordBtn.dataset.recording==="true") {
-        recorder.stop();
-        recordBtn.textContent="🎤 Record";
-        recordBtn.dataset.recording="false";
-        return;
-      }
-      try {
-        const stream = await getMicStream({audio:true});
-        const MR = window.MediaRecorder||window.WebkitMediaRecorder;
-        if (!MR) throw new Error("Recorder not supported");
-        recorder = new MR(stream);
-        chunks=[];
-        recorder.ondataavailable = e=>chunks.push(e.data);
-        recorder.onstop = async ()=>{
-          const blob = new Blob(chunks,{type:'audio/webm'});
-          const form = new FormData();
-          form.append('file',blob,'recording.webm');
-          const res = await fetch('/api/transcribe',{method:'POST',body:form});
-          const {text} = await res.json();
-          document.getElementById("user-input").value = text;
-        };
-        recorder.start();
-        recordBtn.dataset.recording="true";
-        recordBtn.textContent="⏹️ Stop";
-      } catch(err) {
-        alert("Cannot record: "+err.message);
-      }
-    });
-  </script>
+    listening = !listening;
+  });
+</script>
 </body>
 </html>
