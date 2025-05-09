@@ -80,7 +80,7 @@
     // === 2) RECORD & TRANSCRIBE ===
     let recorder, chunks = [];
     const recordBtn = document.getElementById("record-btn");
-
+    console.log("Loaded record script, recordBtn =", recordBtn);
     recordBtn.addEventListener("click", async () => {
       if (recordBtn.dataset.recording === "true") {
         recorder.stop();
