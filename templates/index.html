@@ -4,120 +4,97 @@
   <meta charset="UTF-8">
   <title>B.O.S. v1</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; }
-    #chat-log { border:1px solid #ccc; padding:10px; height:200px; overflow:auto; margin-bottom:1em;}
-    #user-input { width:70%; padding:0.5em; }
+    body { font-family: sans-serif; padding:20px; }
+    #chat-log { border:1px solid #ccc; padding:10px; height:200px; overflow:auto; margin-bottom:1em; }
+    #user-input { width:65%; padding:0.5em; }
     #send-btn, #record-btn { padding:0.5em 1em; margin-left:0.5em; }
     #tts-player { display:block; margin-top:1em; }
   </style>
 </head>
 <body>
   <h1>B.O.S. v1</h1>
+
   <div id="chat-log"></div>
 
   <input id="user-input" type="text" placeholder="Type a message…" />
   <button id="send-btn">Send</button>
-  
-  <!-- Fixed record button section -->
-  <button id="record-btn">🎤 Voice</button>
-  <audio id="tts-player" controls style="display: none;"></audio>
+  <button id="record-btn">🎤 Record</button>
+
+  <audio id="tts-player" controls style="display:none;"></audio>
 
   <script>
-    // === SEND & SPEAK ===
+    // —— 1) RECORD & TRANSCRIBE —— 
+    let recorder, audioChunks = [];
+    const recordBtn = document.getElementById("record-btn");
+
+    recordBtn.addEventListener("click", async () => {
+      if (recordBtn.dataset.recording === "true") {
+        // STOP
+        recorder.stop();
+        recordBtn.textContent = "🎤 Record";
+        recordBtn.dataset.recording = "false";
+      } else {
+        // START
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          recorder = new MediaRecorder(stream);
+          audioChunks = [];
+          recorder.ondataavailable = e => audioChunks.push(e.data);
+          recorder.onstop = async () => {
+            // build blob & send to /api/transcribe
+            const blob = new Blob(audioChunks, { type: "audio/webm" });
+            const form = new FormData();
+            form.append("file", blob, "voice.webm");    // MUST match request.files['file']
+            const res = await fetch("/api/transcribe", { method: "POST", body: form });
+            const { text } = await res.json();
+            document.getElementById("user-input").value = text;
+          };
+          recorder.start();
+          recordBtn.textContent = "⏹️ Stop";
+          recordBtn.dataset.recording = "true";
+        } catch (err) {
+          alert("⚠️ Cannot access microphone:\n" + err.message);
+        }
+      }
+    });
+
+    // —— 2) SEND & PLAY TTS —— 
     async function sendMessage() {
       const input = document.getElementById("user-input");
       const text  = input.value.trim();
       if (!text) return;
 
+      // show user
       const log = document.getElementById("chat-log");
       log.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
       input.value = "";
 
-      try {
-        // 1) Send to backend
-        const res = await fetch("/api/message", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text })
-        });
-        const { reply } = await res.json();
+      // call /api/message
+      let res = await fetch("/api/message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text })
+      });
+      const { reply } = await res.json();
+      log.innerHTML += `<div><strong>BOS:</strong> ${reply}</div>`;
+      log.scrollTop = log.scrollHeight;
 
-        log.innerHTML += `<div><strong>BOS:</strong> ${reply}</div>`;
-        log.scrollTop = log.scrollHeight;
+      // call /api/speak
+      res = await fetch("/api/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: reply })
+      });
+      const { url } = await res.json();
 
-        // 2) Get TTS URL
-        const ttsRes = await fetch("/api/speak", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: reply })
-        });
-        const { url } = await ttsRes.json();
-
-        // 3) Play audio
-        const player = document.getElementById("tts-player");
-        player.src = url;
-        player.style.display = "block";
-        player.play();
-      } catch (error) {
-        console.error("Error:", error);
-      }
+      // play MP3
+      const player = document.getElementById("tts-player");
+      player.src = url;
+      player.style.display = "block";
+      player.play();
     }
-
-    document.getElementById("send-btn").addEventListener("click", sendMessage);
-
-    // === RECORD & TRANSCRIBE ===
-    let mediaRecorder;
-    let audioChunks = [];
-    const recordBtn = document.getElementById("record-btn");
-
-    async function startRecording() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-        
-        mediaRecorder.ondataavailable = (e) => {
-          audioChunks.push(e.data);
-        };
-
-        mediaRecorder.onstop = async () => {
-          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-          
-          // Send to backend for transcription
-          const formData = new FormData();
-          formData.append('audio', audioBlob, 'recording.webm');
-          
-          try {
-            const response = await fetch('/transcribe', {
-              method: 'POST',
-              body: formData
-            });
-            
-            const result = await response.json();
-            if (result.text) {
-              // Auto-fill input with transcribed text
-              document.getElementById("user-input").value = result.text;
-            }
-          } catch (error) {
-            console.error("Transcription error:", error);
-          }
-          
-          audioChunks = [];
-        };
-      } catch (err) {
-        console.error("Microphone access error:", err);
-      }
-    }
-
-    recordBtn.addEventListener("click", async () => {
-      if (!mediaRecorder || mediaRecorder.state === 'inactive') {
-        await startRecording();
-        mediaRecorder.start();
-        recordBtn.textContent = "⏹️ Stop";
-      } else {
-        mediaRecorder.stop();
-        recordBtn.textContent = "🎤 Voice";
-      }
-    });
+    document.getElementById("send-btn")
+            .addEventListener("click", sendMessage);
   </script>
 </body>
 </html>
