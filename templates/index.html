@@ -17,12 +17,11 @@
 
   <input id="user-input" type="text" placeholder="Type a message…" />
   <button id="send-btn">Send</button>
+  
+  <!-- Fixed record button section -->
   <button id="record-btn">🎤 Voice</button>
+  <audio id="tts-player" controls style="display: none;"></audio>
 
-  <audio id="tts-player" controls style="display:none;"></audio>
-
-  <!-- include the recording helper -->
-  <script src="{{ url_for('static', filename='record_audio.js') }}"></script>
   <script>
     // === SEND & SPEAK ===
     async function sendMessage() {
@@ -34,46 +33,90 @@
       log.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
       input.value = "";
 
-      // 1) send to backend
-      let res = await fetch("/api/message", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text })
-      });
-      const { reply } = await res.json();
+      try {
+        // 1) Send to backend
+        const res = await fetch("/api/message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text })
+        });
+        const { reply } = await res.json();
 
-      log.innerHTML += `<div><strong>BOS:</strong> ${reply}</div>`;
-      log.scrollTop = log.scrollHeight;
+        log.innerHTML += `<div><strong>BOS:</strong> ${reply}</div>`;
+        log.scrollTop = log.scrollHeight;
 
-      // 2) get TTS URL
-      res = await fetch("/api/speak", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: reply })
-      });
-      const { url } = await res.json();
+        // 2) Get TTS URL
+        const ttsRes = await fetch("/api/speak", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: reply })
+        });
+        const { url } = await ttsRes.json();
 
-      // 3) play it
-      const player = document.getElementById("tts-player");
-      player.src = url;
-      player.style.display = "block";
-      player.play();
+        // 3) Play audio
+        const player = document.getElementById("tts-player");
+        player.src = url;
+        player.style.display = "block";
+        player.play();
+      } catch (error) {
+        console.error("Error:", error);
+      }
     }
-    document.getElementById("send-btn")
-            .addEventListener("click", sendMessage);
+
+    document.getElementById("send-btn").addEventListener("click", sendMessage);
 
     // === RECORD & TRANSCRIBE ===
-    let recording = false;
-    const rbtn = document.getElementById("record-btn");
-    rbtn.addEventListener("click", () => {
-      if (!recording) {
-        startRecording();      // from record_audio.js
-        rbtn.textContent = "⏹️ Stop";
-      } else {
-        stopRecording();       // from record_audio.js
-        rbtn.textContent = "🎤 Voice";
+    let mediaRecorder;
+    let audioChunks = [];
+    const recordBtn = document.getElementById("record-btn");
+
+    async function startRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        
+        mediaRecorder.ondataavailable = (e) => {
+          audioChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          
+          // Send to backend for transcription
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'recording.webm');
+          
+          try {
+            const response = await fetch('/transcribe', {
+              method: 'POST',
+              body: formData
+            });
+            
+            const result = await response.json();
+            if (result.text) {
+              // Auto-fill input with transcribed text
+              document.getElementById("user-input").value = result.text;
+            }
+          } catch (error) {
+            console.error("Transcription error:", error);
+          }
+          
+          audioChunks = [];
+        };
+      } catch (err) {
+        console.error("Microphone access error:", err);
       }
-      recording = !recording;
+    }
+
+    recordBtn.addEventListener("click", async () => {
+      if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+        await startRecording();
+        mediaRecorder.start();
+        recordBtn.textContent = "⏹️ Stop";
+      } else {
+        mediaRecorder.stop();
+        recordBtn.textContent = "🎤 Voice";
+      }
     });
   </script>
 </body>
