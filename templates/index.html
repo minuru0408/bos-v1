@@ -4,82 +4,95 @@
   <meta charset="UTF-8">
   <title>B.O.S. v1</title>
   <style>
-    body { font-family: sans-serif; padding:20px; }
-    #chat-log { border:1px solid #ccc; padding:10px; height:200px; overflow:auto; margin-bottom:1em; }
-    #user-input { width:65%; padding:0.5em; }
+    body { font-family: sans-serif; padding: 20px; }
+    #chat-log { border:1px solid #ccc; padding:10px; height:200px; overflow:auto; margin-bottom:1em;}
+    #user-input { width:70%; padding:0.5em; }
     #send-btn, #record-btn { padding:0.5em 1em; margin-left:0.5em; }
     #tts-player { display:block; margin-top:1em; }
   </style>
 </head>
 <body>
   <h1>B.O.S. v1</h1>
-
   <div id="chat-log"></div>
 
   <input id="user-input" type="text" placeholder="Type a message…" />
-  <button id="send-btn">Send</button>
-  <button id="record-btn">🎤 Record</button>
+  <!-- Record Button -->
+<button id="recordButton">Record</button>
+<audio id="tts-player" controls style="display:none;"></audio>
 
-  <audio id="tts-player" controls style="display:none;"></audio>
+<script>
+let mediaRecorder;
+let audioChunks = [];
 
+document.getElementById('recordButton').addEventListener('click', async () => {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        
+        mediaRecorder.ondataavailable = (e) => {
+            audioChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            
+            // Send to backend
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'recording.webm');
+            
+            const response = await fetch('/transcribe', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            console.log('Transcription:', result.text);
+            
+            // Reset for next recording
+            audioChunks = [];
+        };
+
+        mediaRecorder.start();
+        recordButton.textContent = 'Stop Recording';
+    } catch (err) {
+        console.error('Error accessing microphone:', err);
+    }
+});
+
+// Toggle recording on button click
+recordButton.addEventListener('click', () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        recordButton.textContent = 'Record';
+    }
+});
+</script>
+
+  <!-- include the recording helper -->
+  <script src="{{ url_for('static', filename='record_audio.js') }}"></script>
   <script>
-    // —— 1) RECORD & TRANSCRIBE —— 
-    let recorder, audioChunks = [];
-    const recordBtn = document.getElementById("record-btn");
-
-    recordBtn.addEventListener("click", async () => {
-      if (recordBtn.dataset.recording === "true") {
-        // STOP
-        recorder.stop();
-        recordBtn.textContent = "🎤 Record";
-        recordBtn.dataset.recording = "false";
-      } else {
-        // START
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          recorder = new MediaRecorder(stream);
-          audioChunks = [];
-          recorder.ondataavailable = e => audioChunks.push(e.data);
-          recorder.onstop = async () => {
-            // build blob & send to /api/transcribe
-            const blob = new Blob(audioChunks, { type: "audio/webm" });
-            const form = new FormData();
-            form.append("file", blob, "voice.webm");    // MUST match request.files['file']
-            const res = await fetch("/api/transcribe", { method: "POST", body: form });
-            const { text } = await res.json();
-            document.getElementById("user-input").value = text;
-          };
-          recorder.start();
-          recordBtn.textContent = "⏹️ Stop";
-          recordBtn.dataset.recording = "true";
-        } catch (err) {
-          alert("⚠️ Cannot access microphone:\n" + err.message);
-        }
-      }
-    });
-
-    // —— 2) SEND & PLAY TTS —— 
+    // === SEND & SPEAK ===
     async function sendMessage() {
       const input = document.getElementById("user-input");
       const text  = input.value.trim();
       if (!text) return;
 
-      // show user
       const log = document.getElementById("chat-log");
       log.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
       input.value = "";
 
-      // call /api/message
+      // 1) send to backend
       let res = await fetch("/api/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text })
       });
       const { reply } = await res.json();
+
       log.innerHTML += `<div><strong>BOS:</strong> ${reply}</div>`;
       log.scrollTop = log.scrollHeight;
 
-      // call /api/speak
+      // 2) get TTS URL
       res = await fetch("/api/speak", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -87,7 +100,7 @@
       });
       const { url } = await res.json();
 
-      // play MP3
+      // 3) play it
       const player = document.getElementById("tts-player");
       player.src = url;
       player.style.display = "block";
@@ -95,6 +108,20 @@
     }
     document.getElementById("send-btn")
             .addEventListener("click", sendMessage);
+
+    // === RECORD & TRANSCRIBE ===
+    let recording = false;
+    const rbtn = document.getElementById("record-btn");
+    rbtn.addEventListener("click", () => {
+      if (!recording) {
+        startRecording();      // from record_audio.js
+        rbtn.textContent = "⏹️ Stop";
+      } else {
+        stopRecording();       // from record_audio.js
+        rbtn.textContent = "🎤 Voice";
+      }
+      recording = !recording;
+    });
   </script>
 </body>
 </html>
