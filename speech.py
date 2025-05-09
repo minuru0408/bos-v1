@@ -1,10 +1,20 @@
 import os
 import time
 from elevenlabslib.User import User as ElevenLabsUser
+import openai
 
 def transcribe_audio(audio_file):
-    """Placeholder until Whisper is integrated."""
-    return "[transcription stub]"
+    """
+    Use OpenAI’s Whisper API to convert uploaded audio to text.
+    Supports webm, wav, mp3, etc.
+    """
+    # audio_file is a Flask FileStorage; we can send it directly
+    audio_file.seek(0)
+    resp = openai.Audio.transcribe(
+        model="whisper-1",
+        file=audio_file
+    )
+    return resp["text"]
 
 def speak_text(text):
     """
