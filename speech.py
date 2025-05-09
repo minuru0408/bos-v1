@@ -1,13 +1,12 @@
 import os
-import openai
 import time
-from elevenlabslib.User import User as ElevenLabsUser
+import requests
+import openai
 
-# 1) TRANSCRIBE using Whisper API
+# 1) TRANSCRIBE with Whisper API
 def transcribe_audio(audio_file):
     """
-    Convert uploaded audio (wav/webm/mp3) to text via OpenAI Whisper.
-    audio_file is the Flask file object.
+    Send uploaded audio (webm/wav/mp3) to OpenAI Whisper and return the text.
     """
     audio_file.seek(0)
     resp = openai.Audio.transcribe(
@@ -16,23 +15,43 @@ def transcribe_audio(audio_file):
     )
     return resp["text"]
 
-# 2) SPEAK using ElevenLabs
+# 2) SPEAK with ElevenLabs HTTP API
 def speak_text(text):
     """
-    Generate a TTS mp3 via ElevenLabs and return its URL path.
-    Uses ELEVENLABS_VOICE_NAME env var (defaults to "George").
+    Send text to ElevenLabs API and save the streamed MP3 under static/tts.
+    Returns the URL path for your front-end to fetch and play.
     """
-    user = ElevenLabsUser(os.getenv("ELEVENLABS_API_KEY"))
-    voice_name = os.getenv("ELEVENLABS_VOICE_NAME", "George")
-    voice = user.get_voice_by_name(voice_name)
+    # Load your ElevenLabs API key and voice ID (George by default)
+    api_key  = os.getenv("ELEVEN_API_KEY") or os.getenv("ELEVENLABS_API_KEY")
+    voice_id = os.getenv("ELEVEN_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb")
 
-    audio_bytes = voice.generate_audio_bytes(text)
+    # Build the request
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
+    headers = {
+        "xi-api-key": api_key,
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "text": text,
+        "model_id": "eleven_monolingual_v1",
+        "voice_settings": {
+            "stability": 0.5,
+            "similarity_boost": 0.8
+        }
+    }
 
-    # save under static/tts so Flask can serve it
-    filename = f"tts_{int(time.time()*1000)}.mp3"
-    filepath = os.path.join("static", "tts", filename)
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    # Call the API
+    response = requests.post(url, json=payload, headers=headers)
+    response.raise_for_status()
+
+    # Save the MP3
+    timestamp = int(time.time() * 1000)
+    filename  = f"tts_{timestamp}.mp3"
+    tts_dir   = os.path.join("static", "tts")
+    os.makedirs(tts_dir, exist_ok=True)
+    filepath  = os.path.join(tts_dir, filename)
     with open(filepath, "wb") as f:
-        f.write(audio_bytes)
+        f.write(response.content)
 
+    # Return the URL path
     return f"/static/tts/{filename}"
