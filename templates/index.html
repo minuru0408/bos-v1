@@ -1,40 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>B.O.S. v1</title>
   <style>
-    body {
-      font-family: sans-serif;
-      padding: 20px;
-      background: #f4f4f4;
-    }
-    #chat-log {
-      border: 1px solid #ccc;
-      padding: 10px;
-      height: 250px;
-      overflow-y: auto;
-      margin-bottom: 1em;
-      background: #fff;
-    }
-    #controls {
-      display: flex;
-      gap: 0.5em;
-    }
-    #user-input {
-      flex: 1;
-      padding: 0.5em;
-      font-size: 1em;
-    }
-    button {
-      padding: 0.5em 1em;
-      font-size: 1em;
-      cursor: pointer;
-    }
-    #tts-player {
-      display: block;
-      margin-top: 1em;
-    }
+    body { font-family: sans-serif; padding: 20px; }
+    #chat-log { border:1px solid #ccc; padding:10px; height:200px; overflow:auto; margin-bottom:1em; }
+    #controls { display: flex; gap: 0.5em; }
+    #user-input { flex: 1; padding:0.5em; font-size:1em; }
+    button { padding:0.5em 1em; font-size:1em; cursor:pointer; }
+    #tts-player { display:block; margin-top:1em; }
   </style>
 </head>
 <body>
@@ -51,32 +26,41 @@
   <audio id="tts-player" controls style="display:none;"></audio>
 
   <script>
-    // —— 1) RECORD & TRANSCRIBE ——
+    // —— 1) RECORD & TRANSCRIBE —— 
     let recorder, chunks = [];
     const recordBtn = document.getElementById("record-btn");
 
     recordBtn.addEventListener("click", async () => {
-      // Toggle recording state
       if (recordBtn.dataset.recording === "true") {
+        // STOP
         recorder.stop();
         recordBtn.textContent = "🎤 Record";
         recordBtn.dataset.recording = "false";
       } else {
+        // START
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           recorder = new MediaRecorder(stream);
           chunks = [];
           recorder.ondataavailable = e => chunks.push(e.data);
           recorder.onstop = async () => {
-            // Build blob and send to /api/transcribe
+            // assemble blob & play back
             const blob = new Blob(chunks, { type: "audio/webm" });
-            const form = new FormData();
-            form.append("file", blob, "voice.webm"); // must match request.files['file']
+            document.getElementById("tts-player").style.display = "none";
 
+            // instant local playback for verification
+            const playback = document.createElement("audio");
+            playback.controls = true;
+            playback.src = URL.createObjectURL(blob);
+            document.body.appendChild(playback);
+
+            // send to /api/transcribe
+            const form = new FormData();
+            form.append("file", blob, "voice.webm"); // must be "file"
             const res = await fetch("/api/transcribe", { method: "POST", body: form });
             const json = await res.json();
             if (json.error) {
-              alert("Transcription error:\n" + json.error);
+              alert("Transcription failed:\n" + json.error);
             } else {
               document.getElementById("user-input").value = json.text;
             }
@@ -90,13 +74,13 @@
       }
     });
 
-    // —— 2) SEND & TTS ——
+    // —— 2) SEND & PLAY TTS —— 
     async function sendMessage() {
       const input = document.getElementById("user-input");
       const text = input.value.trim();
       if (!text) return;
 
-      // Show user message
+      // show user
       const log = document.getElementById("chat-log");
       log.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
       input.value = "";
@@ -119,17 +103,16 @@
       });
       const { url } = await res.json();
 
-      // 3) Play the MP3
+      // 3) play back
       const player = document.getElementById("tts-player");
       player.src = url;
       player.style.display = "block";
       player.play();
     }
-
     document.getElementById("send-btn")
             .addEventListener("click", sendMessage);
 
-    // Optional: allow Enter key to send
+    // allow Enter to send
     document.getElementById("user-input")
             .addEventListener("keydown", e => {
       if (e.key === "Enter") {
