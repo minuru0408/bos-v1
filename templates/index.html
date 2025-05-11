@@ -1,15 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>B.O.S. v1</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; }
-    #chat-log { border:1px solid #ccc; padding:10px; height:200px; overflow:auto; margin-bottom:1em; }
-    #controls { display: flex; gap: 0.5em; }
-    #user-input { flex: 1; padding:0.5em; font-size:1em; }
-    button { padding:0.5em 1em; font-size:1em; cursor:pointer; }
-    #tts-player { display:block; margin-top:1em; }
+    body { font-family: sans-serif; padding:20px; background:#f4f4f4; }
+    #chat-log {
+      border:1px solid #ccc; background:#fff;
+      height:250px; overflow-y:auto; padding:10px;
+      margin-bottom:1em;
+    }
+    #controls { display:flex; gap:0.5em; }
+    #user-input {
+      flex:1; padding:0.5em; font-size:1em;
+    }
+    button {
+      padding:0.5em 1em; font-size:1em;
+      cursor:pointer;
+    }
+    #tts-player, #audio-playback {
+      display:block; margin-top:1em; width:100%;
+    }
   </style>
 </head>
 <body>
@@ -23,99 +34,96 @@
     <button id="record-btn">🎤 Record</button>
   </div>
 
+  <!-- Hidden players -->
+  <audio id="audio-playback" controls style="display:none;"></audio>
   <audio id="tts-player" controls style="display:none;"></audio>
 
   <script>
     // —— 1) RECORD & TRANSCRIBE —— 
-    let recorder, chunks = [];
-    const recordBtn = document.getElementById("record-btn");
+    let recorder, audioChunks = [], isRecording = false;
+    const recordBtn = document.getElementById('record-btn');
+    const playback  = document.getElementById('audio-playback');
+    const userInput = document.getElementById('user-input');
 
-    recordBtn.addEventListener("click", async () => {
-      if (recordBtn.dataset.recording === "true") {
-        // STOP
-        recorder.stop();
-        recordBtn.textContent = "🎤 Record";
-        recordBtn.dataset.recording = "false";
-      } else {
-        // START
+    recordBtn.addEventListener('click', async () => {
+      if (!isRecording) {
+        // START recording
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           recorder = new MediaRecorder(stream);
-          chunks = [];
-          recorder.ondataavailable = e => chunks.push(e.data);
-          recorder.onstop = async () => {
-            // assemble blob & play back
-            const blob = new Blob(chunks, { type: "audio/webm" });
-            document.getElementById("tts-player").style.display = "none";
-
-            // instant local playback for verification
-            const playback = document.createElement("audio");
-            playback.controls = true;
-            playback.src = URL.createObjectURL(blob);
-            document.body.appendChild(playback);
-
-            // send to /api/transcribe
-            const form = new FormData();
-            form.append("file", blob, "voice.webm"); // must be "file"
-            const res = await fetch("/api/transcribe", { method: "POST", body: form });
-            const json = await res.json();
-            if (json.error) {
-              alert("Transcription failed:\n" + json.error);
-            } else {
-              document.getElementById("user-input").value = json.text;
-            }
-          };
+          audioChunks = [];
+          recorder.ondataavailable = e => audioChunks.push(e.data);
           recorder.start();
-          recordBtn.textContent = "⏹️ Stop";
-          recordBtn.dataset.recording = "true";
+          recordBtn.textContent = '⏹️ Stop';
         } catch (err) {
-          alert("Cannot access microphone:\n" + err.message);
+          return alert('⚠️ Microphone access denied or not supported:\n' + err.message);
         }
+      } else {
+        // STOP recording
+        recorder.stop();
+        recordBtn.textContent = '🎤 Record';
+        recorder.onstop = async () => {
+          // Play back locally
+          const blob = new Blob(audioChunks, { type: 'audio/webm' });
+          playback.src = URL.createObjectURL(blob);
+          playback.style.display = 'block';
+
+          // Send to /api/transcribe
+          const form = new FormData();
+          form.append('file', blob, 'voice.webm');  // matches request.files['file']
+          const res = await fetch('/api/transcribe', { method: 'POST', body: form });
+          const { text, error } = await res.json();
+          if (error) {
+            alert('Transcription failed:\n' + error);
+          } else {
+            userInput.value = text;
+          }
+        };
       }
+      isRecording = !isRecording;
     });
 
-    // —— 2) SEND & PLAY TTS —— 
+    // —— 2) SEND & TTS —— 
     async function sendMessage() {
-      const input = document.getElementById("user-input");
-      const text = input.value.trim();
+      const text = userInput.value.trim();
       if (!text) return;
 
-      // show user
-      const log = document.getElementById("chat-log");
+      // Add user message
+      const log = document.getElementById('chat-log');
       log.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
-      input.value = "";
+      userInput.value = '';
 
-      // 1) /api/message
-      let res = await fetch("/api/message", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      // 1) Chat endpoint
+      let res = await fetch('/api/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text })
       });
       const { reply } = await res.json();
       log.innerHTML += `<div><strong>BOS:</strong> ${reply}</div>`;
       log.scrollTop = log.scrollHeight;
 
-      // 2) /api/speak
-      res = await fetch("/api/speak", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      // 2) TTS endpoint
+      res = await fetch('/api/speak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: reply })
       });
       const { url } = await res.json();
 
-      // 3) play back
-      const player = document.getElementById("tts-player");
-      player.src = url;
-      player.style.display = "block";
-      player.play();
+      // 3) Play BOS voice
+      const ttsPlayer = document.getElementById('tts-player');
+      ttsPlayer.src = url;
+      ttsPlayer.style.display = 'block';
+      ttsPlayer.play();
     }
-    document.getElementById("send-btn")
-            .addEventListener("click", sendMessage);
 
-    // allow Enter to send
-    document.getElementById("user-input")
-            .addEventListener("keydown", e => {
-      if (e.key === "Enter") {
+    document.getElementById('send-btn')
+            .addEventListener('click', sendMessage);
+
+    // Allow Enter key to send
+    userInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
         e.preventDefault();
         sendMessage();
       }
