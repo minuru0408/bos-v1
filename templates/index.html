@@ -37,9 +37,9 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      const chatLog   = document.getElementById('chat-log');
+      const chatLog = document.getElementById('chat-log');
       const userInput = document.getElementById('user-input');
-      const sendBtn   = document.getElementById('send-btn');
+      const sendBtn = document.getElementById('send-btn');
       const recordBtn = document.getElementById('record-btn');
       const ttsPlayer = document.getElementById('tts-player');
 
@@ -121,8 +121,8 @@
       });
 
       // —— RECORD & TRANSCRIBE ——
-      let isRecording = false,
-          mediaRecorder;
+      let isRecording = false;
+      let mediaRecorder;
 
       recordBtn.addEventListener('click', async () => {
         try {
@@ -136,7 +136,6 @@
             
             mediaRecorder.onstop = async () => {
               try {
-                recordBtn.disabled = true;
                 const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
                 
                 // Stop media tracks
@@ -155,13 +154,11 @@
                 userInput.value = text;
               } catch (err) {
                 addMessage('System', err.message, true);
-              } finally {
-                recordBtn.disabled = false;
               }
             };
 
             mediaRecorder.start();
-            recordBtn.textContent = '⏹️ Stop';
+            recordBtn.textContent = '⏹️ Stop Recording';
             isRecording = true;
           } else {
             // STOP recording
@@ -171,7 +168,8 @@
           }
         } catch (err) {
           addMessage('System', `Recording failed: ${err.message}`, true);
-          recordBtn.disabled = false;
+          recordBtn.textContent = '🎤 Record';
+          isRecording = false;
         }
       });
     });
