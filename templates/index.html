@@ -18,9 +18,7 @@
       padding:0.5em 1em; font-size:1em;
       cursor:pointer;
     }
-    #tts-player, #audio-playback {
-      display:block; margin-top:1em; width:100%;
-    }
+    audio { display:block; margin-top:1em; width:100%; }
   </style>
 </head>
 <body>
@@ -34,41 +32,44 @@
     <button id="record-btn">🎤 Record</button>
   </div>
 
-  <!-- Hidden players -->
+  <!-- Playback of your own recording for verification -->
   <audio id="audio-playback" controls style="display:none;"></audio>
+  <!-- BOS’s voice replies -->
   <audio id="tts-player" controls style="display:none;"></audio>
 
   <script>
-    // —— 1) RECORD & TRANSCRIBE —— 
-    let recorder, audioChunks = [], isRecording = false;
-    const recordBtn = document.getElementById('record-btn');
-    const playback  = document.getElementById('audio-playback');
-    const userInput = document.getElementById('user-input');
+    // —— 1) RECORD & TRANSCRIBE ——
+    let isRecording = false,
+        mediaRecorder,
+        audioChunks = [];
+    const recordBtn = document.getElementById('record-btn'),
+          playback  = document.getElementById('audio-playback'),
+          userInput = document.getElementById('user-input');
 
     recordBtn.addEventListener('click', async () => {
       if (!isRecording) {
         // START recording
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          recorder = new MediaRecorder(stream);
-          audioChunks = [];
-          recorder.ondataavailable = e => audioChunks.push(e.data);
-          recorder.start();
+          mediaRecorder = new MediaRecorder(stream);
+          audioChunks   = [];
+          mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+          mediaRecorder.start();
           recordBtn.textContent = '⏹️ Stop';
         } catch (err) {
-          return alert('⚠️ Microphone access denied or not supported:\n' + err.message);
+          return alert('⚠️ Mic access denied or not supported:\n' + err.message);
         }
       } else {
         // STOP recording
-        recorder.stop();
+        mediaRecorder.stop();
         recordBtn.textContent = '🎤 Record';
-        recorder.onstop = async () => {
-          // Play back locally
+        mediaRecorder.onstop = async () => {
+          // 1) Play back your recording
           const blob = new Blob(audioChunks, { type: 'audio/webm' });
           playback.src = URL.createObjectURL(blob);
           playback.style.display = 'block';
 
-          // Send to /api/transcribe
+          // 2) Send to Whisper endpoint
           const form = new FormData();
           form.append('file', blob, 'voice.webm');  // matches request.files['file']
           const res = await fetch('/api/transcribe', { method: 'POST', body: form });
@@ -76,19 +77,21 @@
           if (error) {
             alert('Transcription failed:\n' + error);
           } else {
-            userInput.value = text;
+            userInput.value = text;  // populate the input for Send
           }
         };
       }
       isRecording = !isRecording;
     });
+  </script>
 
-    // —— 2) SEND & TTS —— 
+  <script>
+    // —— 2) SEND & PLAY BOS TTS ——
     async function sendMessage() {
       const text = userInput.value.trim();
       if (!text) return;
 
-      // Add user message
+      // Show your message
       const log = document.getElementById('chat-log');
       log.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
       userInput.value = '';
@@ -111,7 +114,7 @@
       });
       const { url } = await res.json();
 
-      // 3) Play BOS voice
+      // 3) Play BOS’s voice
       const ttsPlayer = document.getElementById('tts-player');
       ttsPlayer.src = url;
       ttsPlayer.style.display = 'block';
@@ -121,7 +124,7 @@
     document.getElementById('send-btn')
             .addEventListener('click', sendMessage);
 
-    // Allow Enter key to send
+    // Optional: Enter key sends
     userInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
         e.preventDefault();
