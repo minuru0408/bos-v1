@@ -16,8 +16,10 @@
     }
     button {
       padding:0.5em 1em; font-size:1em; cursor:pointer;
+      &:disabled { opacity:0.6; cursor:not-allowed; }
     }
     #tts-player { display:block; margin-top:1em; width:100%; }
+    .error { color: #dc3545; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -31,7 +33,6 @@
     <button id="record-btn">🎤 Record</button>
   </div>
 
-  <!-- B.O.S.’s voice replies -->
   <audio id="tts-player" controls style="display:none;"></audio>
 
   <script>
@@ -42,41 +43,78 @@
       const recordBtn = document.getElementById('record-btn');
       const ttsPlayer = document.getElementById('tts-player');
 
+      // —— Safe message rendering ——
+      function addMessage(sender, text, isError = false) {
+        const msg = document.createElement('div');
+        if (isError) {
+          msg.className = 'error';
+          msg.textContent = `${sender}: ${text}`;
+        } else {
+          msg.innerHTML = `<strong>${sender}:</strong> `;
+          const content = document.createTextNode(text);
+          msg.appendChild(content);
+        }
+        chatLog.appendChild(msg);
+        chatLog.scrollTop = chatLog.scrollHeight;
+      }
+
       // —— SEND & TTS ——
       async function sendMessage() {
         const text = userInput.value.trim();
         if (!text) return;
 
-        chatLog.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
-        userInput.value = '';
+        try {
+          sendBtn.disabled = true;
+          addMessage('You', text);
+          userInput.value = '';
 
-        // 1) Chat endpoint
-        let res = await fetch('/api/message', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text })
-        });
-        const { reply } = await res.json();
-        chatLog.innerHTML += `<div><strong>BOS:</strong> ${reply}</div>`;
-        chatLog.scrollTop = chatLog.scrollHeight;
+          // 1) Chat endpoint
+          let res = await fetch('/api/message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+          });
+          
+          if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+          const { reply } = await res.json();
+          if (!reply) throw new Error('Empty response from server');
 
-        // 2) TTS endpoint
-        res = await fetch('/api/speak', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: reply })
-        });
-        const { url } = await res.json();
+          addMessage('BOS', reply);
 
-        // 3) Play voice
-        ttsPlayer.src = url;
-        ttsPlayer.style.display = 'block';
-        ttsPlayer.play();
+          // 2) TTS endpoint
+          res = await fetch('/api/speak', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: reply })
+          });
+          
+          if (!res.ok) throw new Error(`TTS failed: HTTP ${res.status}`);
+          const { url } = await res.json();
+          if (!url) throw new Error('No audio URL received');
+
+          // 3) Play voice
+          ttsPlayer.src = url;
+          ttsPlayer.style.display = 'block';
+          ttsPlayer.load();
+          
+          await new Promise((resolve, reject) => {
+            ttsPlayer.addEventListener('canplaythrough', resolve);
+            ttsPlayer.addEventListener('error', () => {
+              reject(new Error('Audio playback failed'));
+            });
+          });
+          
+          await ttsPlayer.play();
+        } catch (err) {
+          addMessage('System', err.message, true);
+        } finally {
+          sendBtn.disabled = false;
+        }
       }
 
       sendBtn.addEventListener('click', sendMessage);
       userInput.addEventListener('keydown', e => {
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' && !sendBtn.disabled) {
           e.preventDefault();
           sendMessage();
         }
@@ -84,53 +122,56 @@
 
       // —— RECORD & TRANSCRIBE ——
       let isRecording = false,
-          mediaRecorder,
-          audioChunks = [];
+          mediaRecorder;
 
       recordBtn.addEventListener('click', async () => {
-        if (!isRecording) {
-          // START recording
-          try {
+        try {
+          if (!isRecording) {
+            // START recording
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder  = new MediaRecorder(stream);
-            audioChunks    = [];
+            mediaRecorder = new MediaRecorder(stream);
+            const audioChunks = [];
+            
             mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-
-            // set onstop before start
+            
             mediaRecorder.onstop = async () => {
-              const blob = new Blob(audioChunks, { type: 'audio/webm' });
-
-              // send to /api/transcribe
-              const form = new FormData();
-              form.append('file', blob, 'voice.webm');
-              let res = await fetch('/api/transcribe', { method: 'POST', body: form });
-              if (!res.ok) {
-                alert('Transcription failed: HTTP ' + res.status);
-                return;
-              }
-              const { text, error } = await res.json();
-              if (error) {
-                alert('Transcription error:\n' + error);
-              } else {
-                // log You: hi
-                chatLog.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
-                chatLog.scrollTop = chatLog.scrollHeight;
+              try {
+                recordBtn.disabled = true;
+                const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+                
+                // Stop media tracks
+                stream.getTracks().forEach(track => track.stop());
+                
+                // Transcribe
+                const form = new FormData();
+                form.append('file', blob, 'recording');
+                const res = await fetch('/api/transcribe', { method: 'POST', body: form });
+                
+                if (!res.ok) throw new Error(`Transcription failed: HTTP ${res.status}`);
+                const { text, error } = await res.json();
+                if (error) throw new Error(error);
+                
+                addMessage('You', text);
                 userInput.value = text;
+              } catch (err) {
+                addMessage('System', err.message, true);
+              } finally {
+                recordBtn.disabled = false;
               }
             };
 
             mediaRecorder.start();
             recordBtn.textContent = '⏹️ Stop';
             isRecording = true;
-          } catch (err) {
-            alert('⚠️ Microphone access denied or not supported:\n' + err.message);
+          } else {
+            // STOP recording
+            mediaRecorder.stop();
+            recordBtn.textContent = '🎤 Record';
+            isRecording = false;
           }
-
-        } else {
-          // STOP recording
-          mediaRecorder.stop();
-          recordBtn.textContent = '🎤 Record';
-          isRecording = false;
+        } catch (err) {
+          addMessage('System', `Recording failed: ${err.message}`, true);
+          recordBtn.disabled = false;
         }
       });
     });
