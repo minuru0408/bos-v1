@@ -18,7 +18,7 @@
       padding:0.5em 1em; font-size:1em;
       cursor:pointer;
     }
-    audio { display:block; margin-top:1em; width:100%; }
+    #tts-player { display:block; margin-top:1em; width:100%; }
   </style>
 </head>
 <body>
@@ -32,9 +32,7 @@
     <button id="record-btn">🎤 Record</button>
   </div>
 
-  <!-- Playback of your own recording for verification -->
-  <audio id="audio-playback" controls style="display:none;"></audio>
-  <!-- BOS’s voice replies -->
+  <!-- Only BOS’s voice player now -->
   <audio id="tts-player" controls style="display:none;"></audio>
 
   <script>
@@ -42,9 +40,10 @@
     let isRecording = false,
         mediaRecorder,
         audioChunks = [];
+
     const recordBtn = document.getElementById('record-btn'),
-          playback  = document.getElementById('audio-playback'),
-          userInput = document.getElementById('user-input');
+          userInput = document.getElementById('user-input'),
+          chatLog   = document.getElementById('chat-log');
 
     recordBtn.addEventListener('click', async () => {
       if (!isRecording) {
@@ -52,36 +51,42 @@
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           mediaRecorder = new MediaRecorder(stream);
-          audioChunks   = [];
+          audioChunks = [];
           mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
           mediaRecorder.start();
           recordBtn.textContent = '⏹️ Stop';
+          isRecording = true;
         } catch (err) {
-          return alert('⚠️ Mic access denied or not supported:\n' + err.message);
+          alert('⚠️ Mic access denied or not supported:\n' + err.message);
         }
       } else {
         // STOP recording
         mediaRecorder.stop();
         recordBtn.textContent = '🎤 Record';
         mediaRecorder.onstop = async () => {
-          // 1) Play back your recording
+          // Build the audio blob
           const blob = new Blob(audioChunks, { type: 'audio/webm' });
-          playback.src = URL.createObjectURL(blob);
-          playback.style.display = 'block';
 
-          // 2) Send to Whisper endpoint
+          // Send to Whisper transcription endpoint
           const form = new FormData();
-          form.append('file', blob, 'voice.webm');  // matches request.files['file']
+          form.append('file', blob, 'voice.webm');  // must match request.files['file']
           const res = await fetch('/api/transcribe', { method: 'POST', body: form });
           const { text, error } = await res.json();
+
           if (error) {
             alert('Transcription failed:\n' + error);
           } else {
-            userInput.value = text;  // populate the input for Send
+            // 1) Log the converted text in the chat window
+            chatLog.innerHTML += `<div><strong>You (transcribed):</strong> ${text}</div>`;
+            chatLog.scrollTop = chatLog.scrollHeight;
+
+            // 2) Populate the input for the Send button
+            userInput.value = text;
           }
+          audioChunks = [];
+          isRecording = false;
         };
       }
-      isRecording = !isRecording;
     });
   </script>
 
@@ -92,8 +97,7 @@
       if (!text) return;
 
       // Show your message
-      const log = document.getElementById('chat-log');
-      log.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
+      chatLog.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
       userInput.value = '';
 
       // 1) Chat endpoint
@@ -103,8 +107,8 @@
         body: JSON.stringify({ text })
       });
       const { reply } = await res.json();
-      log.innerHTML += `<div><strong>BOS:</strong> ${reply}</div>`;
-      log.scrollTop = log.scrollHeight;
+      chatLog.innerHTML += `<div><strong>BOS:</strong> ${reply}</div>`;
+      chatLog.scrollTop = chatLog.scrollHeight;
 
       // 2) TTS endpoint
       res = await fetch('/api/speak', {
@@ -124,7 +128,7 @@
     document.getElementById('send-btn')
             .addEventListener('click', sendMessage);
 
-    // Optional: Enter key sends
+    // Allow Enter key to send
     userInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
         e.preventDefault();
