@@ -1,57 +1,47 @@
+# speech.py
+
 import os
+from openai import OpenAI  # <-- new v2 client
 import time
 import requests
-import openai
+
+# Initialize the OpenAI client once, using your env var
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def transcribe_audio(audio_file):
     """
-    Send uploaded audio (webm/wav/mp3) to OpenAI Whisper and return the text.
+    Send the uploaded audio blob to OpenAI's GPT-4o-transcribe model
+    and return the transcription text.
     """
-    # Initialize OpenAI client with API key
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))  # Explicit initialization
-    
-    # Ensure file pointer is at start
+    # Make sure we’re at the start of the file
     audio_file.seek(0)
-    
-    # Create transcription using updated API syntax
+
+    # Call the new client.audio.transcriptions.create endpoint
     resp = client.audio.transcriptions.create(
-        model="whisper-1",
+        model="gpt-4o-transcribe",  # or "whisper-1" if you prefer
         file=audio_file
     )
-    return resp.text  # Access text attribute directly
+    return resp.text  # this is the transcribed text
 
 def speak_text(text):
     """
-    Send text to ElevenLabs API and save the streamed MP3 under static/tts.
-    Returns the URL path for your front-end to fetch and play.
+    (unchanged) your existing ElevenLabs TTS logic
     """
-    # Load your ElevenLabs key and George’s voice ID
     api_key  = os.getenv("ELEVEN_API_KEY") or os.getenv("ELEVENLABS_API_KEY")
-    voice_id = os.getenv("ELEVEN_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb")
+    voice_id = os.getenv("ELEVEN_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb")  # George
 
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
-    headers = {
-        "xi-api-key": api_key,
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "text": text,
-        "model_id": "eleven_monolingual_v1",
-        "voice_settings": {
-            "stability": 0.5,
-            "similarity_boost": 0.8
-        }
-    }
+    headers = {"xi-api-key": api_key, "Content-Type": "application/json"}
+    payload = {"text": text, "model_id": "eleven_monolingual_v1",
+               "voice_settings": {"stability":0.5,"similarity_boost":0.8}}
 
     resp = requests.post(url, json=payload, headers=headers)
     resp.raise_for_status()
 
-    # Save MP3 under static/tts so Flask can serve it
     tts_dir = os.path.join("static", "tts")
     os.makedirs(tts_dir, exist_ok=True)
     filename = f"tts_{int(time.time()*1000)}.mp3"
-    filepath = os.path.join(tts_dir, filename)
-    with open(filepath, "wb") as f:
+    path = os.path.join(tts_dir, filename)
+    with open(path, "wb") as f:
         f.write(resp.content)
-
     return f"/static/tts/{filename}"
