@@ -2,6 +2,7 @@ import os
 from flask import Flask, request, render_template, jsonify, session
 from dotenv import load_dotenv
 from openai import OpenAI
+from memory import log_message, load_memory  # ADD THIS IMPORT
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -21,7 +22,7 @@ def index():
 @app.route("/api/message", methods=["POST"])
 def message():
     user_text = request.json.get("text", "").strip()
-    log_message("user", user_text)
+    log_message("user", user_text)  # Now properly imported
 
     chat_history = [SYSTEM_PROMPT]
     chat_history.extend(load_memory(limit=20))
@@ -40,18 +41,4 @@ def message():
     log_message("assistant", bot_text)
     return jsonify({"reply": bot_text})
 
-@app.route("/api/transcribe", methods=["POST"])
-def transcribe():
-    audio = request.files['file']
-    text = transcribe_audio(audio)
-    return jsonify({"text": text})
-
-@app.route("/api/speak", methods=["POST"])
-def speak():
-    text = request.json.get("text", "")
-    url = speak_text(text)
-    return jsonify({"url": url})
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5001))
-    app.run(debug=True, host="0.0.0.0", port=port)
+# ... rest of the code remains the same ...
