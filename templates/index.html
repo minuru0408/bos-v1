@@ -15,8 +15,7 @@
       flex:1; padding:0.5em; font-size:1em;
     }
     button {
-      padding:0.5em 1em; font-size:1em;
-      cursor:pointer;
+      padding:0.5em 1em; font-size:1em; cursor:pointer;
     }
     #tts-player { display:block; margin-top:1em; width:100%; }
   </style>
@@ -32,75 +31,22 @@
     <button id="record-btn">🎤 Record</button>
   </div>
 
-  <!-- Only BOS’s voice player now -->
+  <!-- BOS’s voice replies -->
   <audio id="tts-player" controls style="display:none;"></audio>
 
   <script>
-    // —— 1) RECORD & TRANSCRIBE ——
-    let isRecording = false,
-        mediaRecorder,
-        audioChunks = [];
-
-    const recordBtn = document.getElementById('record-btn'),
-          userInput = document.getElementById('user-input'),
-          chatLog   = document.getElementById('chat-log');
-
-    recordBtn.addEventListener('click', async () => {
-      if (!isRecording) {
-        // START recording
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          mediaRecorder = new MediaRecorder(stream);
-          audioChunks = [];
-          mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-          mediaRecorder.start();
-          recordBtn.textContent = '⏹️ Stop';
-          isRecording = true;
-        } catch (err) {
-          alert('⚠️ Mic access denied or not supported:\n' + err.message);
-        }
-      } else {
-        // STOP recording
-        mediaRecorder.stop();
-        recordBtn.textContent = '🎤 Record';
-        mediaRecorder.onstop = async () => {
-          // Build the audio blob
-          const blob = new Blob(audioChunks, { type: 'audio/webm' });
-
-          // Send to Whisper transcription endpoint
-          const form = new FormData();
-          form.append('file', blob, 'voice.webm');  // must match request.files['file']
-          const res = await fetch('/api/transcribe', { method: 'POST', body: form });
-          const { text, error } = await res.json();
-
-          if (error) {
-            alert('Transcription failed:\n' + error);
-          } else {
-            // 1) Log the converted text in the chat window
-            chatLog.innerHTML += `<div><strong>You (transcribed):</strong> ${text}</div>`;
-            chatLog.scrollTop = chatLog.scrollHeight;
-
-            // 2) Populate the input for the Send button
-            userInput.value = text;
-          }
-          audioChunks = [];
-          isRecording = false;
-        };
-      }
-    });
-  </script>
-
-  <script>
-    // —— 2) SEND & PLAY BOS TTS ——
+    // —— 1) SEND & PLAY B.O.S. TTS ——
     async function sendMessage() {
-      const text = userInput.value.trim();
+      const userInput = document.getElementById('user-input');
+      const chatLog   = document.getElementById('chat-log');
+      const text      = userInput.value.trim();
       if (!text) return;
 
-      // Show your message
+      // Show user message
       chatLog.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
       userInput.value = '';
 
-      // 1) Chat endpoint
+      // Call /api/message
       let res = await fetch('/api/message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,7 +56,7 @@
       chatLog.innerHTML += `<div><strong>BOS:</strong> ${reply}</div>`;
       chatLog.scrollTop = chatLog.scrollHeight;
 
-      // 2) TTS endpoint
+      // Call /api/speak for TTS
       res = await fetch('/api/speak', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -118,7 +64,7 @@
       });
       const { url } = await res.json();
 
-      // 3) Play BOS’s voice
+      // Play George’s voice
       const ttsPlayer = document.getElementById('tts-player');
       ttsPlayer.src = url;
       ttsPlayer.style.display = 'block';
@@ -129,10 +75,63 @@
             .addEventListener('click', sendMessage);
 
     // Allow Enter key to send
-    userInput.addEventListener('keydown', e => {
+    document.getElementById('user-input')
+            .addEventListener('keydown', e => {
       if (e.key === 'Enter') {
         e.preventDefault();
         sendMessage();
+      }
+    });
+  </script>
+
+  <script>
+    // —— 2) RECORD & TRANSCRIBE ——
+    let isRecording   = false,
+        mediaRecorder,
+        audioChunks    = [];
+
+    const recordBtn  = document.getElementById('record-btn'),
+          chatLog    = document.getElementById('chat-log'),
+          userInput  = document.getElementById('user-input');
+
+    recordBtn.addEventListener('click', async () => {
+      if (!isRecording) {
+        // START recording
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder  = new MediaRecorder(stream);
+          audioChunks    = [];
+          mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+          mediaRecorder.start();
+          recordBtn.textContent = '⏹️ Stop';
+          isRecording = true;
+        } catch (err) {
+          alert('⚠️ Microphone access denied or not supported:\n' + err.message);
+        }
+      } else {
+        // STOP recording
+        mediaRecorder.stop();
+        recordBtn.textContent = '🎤 Record';
+        mediaRecorder.onstop = async () => {
+          const blob = new Blob(audioChunks, { type: 'audio/webm' });
+
+          // Send to /api/transcribe
+          const form = new FormData();
+          form.append('file', blob, 'voice.webm');  // must match request.files['file']
+          const res = await fetch('/api/transcribe', { method: 'POST', body: form });
+          const { text, error } = await res.json();
+
+          if (error) {
+            alert('Transcription failed:\n' + error);
+          } else {
+            // Log the converted text so you see "You: hi"
+            chatLog.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
+            chatLog.scrollTop = chatLog.scrollHeight;
+            // Put it into the input for Send
+            userInput.value = text;
+          }
+        };
+        isRecording = false;
       }
     });
   </script>
