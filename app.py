@@ -1,4 +1,7 @@
+
 import os
+import json
+import re
 import openai
 from flask import Flask, render_template, request, jsonify
 from speech import speak_text
@@ -6,50 +9,35 @@ from search import intelligent_search
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
-
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 SYSTEM_PROMPT = """
 You are B.O.S., a sophisticated AI assistant modeled after Jarvis from Ironman. You speak with calm confidence, respect, and a touch of wit, always addressing your user as “Sir.” You have full web access and a comprehensive internal knowledge base, including past conversation memory.
 
 USER PROFILE (from memory):
-- Name: Irmuun Sodbileg (nickname “Minuru”)  
-- Prefers to be called “Sir.”  
-- Born: March 30, 2002  
-- From Mongolia; currently lives in Tokyo, Japan.  
-- Education: 2nd-year university student, graduating in 2027.  
-- Roles: Musician, businessman, student, author, traveler.  
+- Name: Irmuun Sodbileg (nickname “Minuru”)
+- Prefers to be called “Sir.”
+- Born: March 30, 2002
+- From Mongolia; currently lives in Tokyo, Japan.
+- Education: 2nd-year university student, graduating in 2027.
+- Roles: Musician, businessman, student, author, traveler.
 - Hobbies: Extreme sports, racing, snowboarding, skiing, ice skating, roller skating, surfing, motorbikes, cars, music, books, finance, technology, science, history.
 
 YOUR BEHAVIOR:
-- You may draw on memory to answer personal/profile questions (e.g. “What’s my name?”).  
-- You are polite, concise, and helpful. You anticipate follow-up questions.  
+- You may draw on memory to answer personal/profile questions (e.g. “What’s my name?”).
+- You are polite, concise, and helpful. You anticipate follow-up questions.
 - You may offer suggestions (“May I suggest…?”) but never assume.
 
 INFORMATION SOURCES:
-1. **Real-time / up-to-date data** (weather, time, stock prices, breaking news, live events):
-   - You CANNOT answer directly from memory for these.  
-   - You MUST output exactly:
-     {"search":"<precise query to send to the web>"}
-   - Do NOT include any additional text or formatting around this JSON.
-
-2. **Static knowledge** (jokes, historical facts, definitions, explanations, code examples, user profile questions):
-   - You reply in fluent natural language, in-character as Jarvis.
+1. Real-time / up-to-date data: you MUST respond with exactly {"search":"…"} and nothing else.
+2. Static knowledge & user profile questions: reply in fluent natural language, in-character as Jarvis.
 
 FORMAT RULES:
-- If you emit the JSON `{"search": …}`, your handler will perform the search and return results.  
-- Otherwise, your response is the final answer—do not mix JSON and free text.  
-- Always address the user as “Sir” when speaking.
+- If you emit JSON `{"search":"…"}`, your handler will perform the search.
+- Otherwise your response is the final answer. Do not mix JSON and free text.
+- Always address the user as “Sir.”
 
-EXAMPLES:
-- Q: “What’s my name?”  
-  A: “Your name is Irmuun Sodbileg, Sir.”  
-- Q: “What’s the current time in Tokyo?”  
-  A: {"search":"current time in Tokyo"}  
-- Q: “Tell me a joke.”  
-  A: “Certainly, Sir—why did the developer go broke? Because he used up all his cache!”
-
-Maintain this protocol rigorously. Over and out.
+Maintain this protocol rigorously.
 """
 
 @app.route("/")
@@ -60,44 +48,45 @@ def index():
 def message():
     data      = request.get_json() or {}
     user_text = data.get("text", "").strip()
-    lower     = user_text.lower()                  # <-- make sure we define `lower`
 
-    # 1) If user asked to search the web
-    trigger = "search the web for "
-    if lower.startswith(trigger):
-        # extract the actual search query
-        query = user_text[len(trigger):].strip()
-        if not query:
-            return jsonify({"reply": "Please say what to search for."})
+    # Build the full messages array, starting with your system prompt
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user",   "content": user_text}
+    ]
 
+    # Ask the model
+    resp = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=messages
+    )
+    raw = resp.choices[0].message.content.strip()
+
+    # Try to parse a search JSON; if present, do the search
+    try:
+        obj = json.loads(raw)
+        query = obj.get("search")
+    except json.JSONDecodeError:
+        query = None
+
+    if query:
+        # perform your intelligent_search() as before…
         try:
             items = intelligent_search(query)
             if not items:
                 reply = f"No results found for “{query}.”"
             else:
-                # Format the top results into a single reply string
-                lines = ["Top search results:"]
+                lines = [f"Top search results for “{query}”:"]
                 for i, item in enumerate(items, start=1):
-                    lines.append(f"{i}. {item.get('title')}")
-                    lines.append(f"   {item.get('snippet')}")
-                    lines.append(f"   Link: {item.get('link')}")
+                    lines.append(f"{i}. {item.get('title')}\n   {item.get('snippet')}\n   {item.get('link')}")
                 reply = "\n".join(lines)
         except Exception as e:
             reply = f"Search error: {e}"
+    else:
+        # Not a search command — raw is your natural-language answer
+        reply = raw
 
-        return jsonify({"reply": reply})
-
-    # 2) Otherwise, normal chat via OpenAI
-    try:
-        resp = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role":"user","content":user_text}]
-        )
-        bot_reply = resp.choices[0].message.content
-    except Exception as e:
-        bot_reply = f"Chat error: {e}"
-
-    return jsonify({"reply": bot_reply})
+    return jsonify({"reply": reply})
 
 @app.route("/api/speak", methods=["POST"])
 def speak():
