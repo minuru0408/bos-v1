@@ -4,63 +4,37 @@
   <meta charset="UTF-8" />
   <title>B.O.S. v1</title>
   <style>
-    body {
-      font-family: sans-serif;
-      padding: 20px;
-      background: #f4f4f4;
-    }
-    h1 {
-      margin-bottom: 0.5em;
-    }
+    body { font-family: sans-serif; padding:20px; background:#f4f4f4; }
+    h1 { margin-bottom:0.5em; }
     #chat-log {
-      border: 1px solid #ccc;
-      background: #fff;
-      height: 250px;
-      overflow-y: auto;
-      padding: 10px;
-      margin-bottom: 1em;
+      border:1px solid #ccc;
+      background:#fff;
+      height:250px;
+      overflow-y:auto;
+      padding:10px;
+      margin-bottom:1em;
     }
-    #controls {
-      display: flex;
-      gap: 0.5em;
-    }
-    #user-input {
-      flex: 1;
-      padding: 0.5em;
-      font-size: 1em;
-    }
-    button {
-      padding: 0.5em 1em;
-      font-size: 1em;
-      cursor: pointer;
-    }
-    #tts-player {
-      display: block;
-      margin-top: 1em;
-      width: 100%;
-    }
+    #controls { display:flex; gap:0.5em; }
+    #user-input { flex:1; padding:0.5em; font-size:1em; }
+    button { padding:0.5em 1em; font-size:1em; cursor:pointer; }
+    #tts-player { display:block; margin-top:1em; width:100%; }
   </style>
 </head>
 <body>
   <h1>B.O.S. v1</h1>
 
-  <!-- Chat display area -->
+  <!-- Chat display -->
   <div id="chat-log"></div>
 
-  <!-- Input + buttons -->
+  <!-- Text input & send -->
   <div id="controls">
     <input id="user-input" type="text" placeholder="Type a message…" />
     <button id="send-btn">Send</button>
-    <button id="record-btn">🎤 Record</button>
   </div>
 
-  <!-- Audio element for B.O.S.’s voice -->
+  <!-- B.O.S.’s spoken reply -->
   <audio id="tts-player" controls style="display:none;"></audio>
 
-  <!-- 1) Record/transcribe logic in its own file -->
-  <script src="{{ url_for('static', filename='record_audio.js') }}"></script>
-
-  <!-- 2) Send & TTS logic -->
   <script>
     const chatLog   = document.getElementById('chat-log');
     const userInput = document.getElementById('user-input');
@@ -70,27 +44,30 @@
     async function sendMessage() {
       const text = userInput.value.trim();
       if (!text) return;
-      // show user message
+
+      // 1) Show user
       chatLog.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
       userInput.value = '';
-      // call chat endpoint
+
+      // 2) Ask B.O.S.
       let res = await fetch('/api/message', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ text })
       });
       const { reply } = await res.json();
-      // show bot reply
       chatLog.innerHTML += `<div><strong>BOS:</strong> ${reply}</div>`;
       chatLog.scrollTop = chatLog.scrollHeight;
-      // call TTS endpoint
+
+      // 3) Get TTS URL
       res = await fetch('/api/speak', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ text: reply })
       });
       const { url } = await res.json();
-      // play audio
+
+      // 4) Play it
       ttsPlayer.src = url;
       ttsPlayer.style.display = 'block';
       ttsPlayer.play().catch(console.error);
