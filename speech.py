@@ -3,31 +3,14 @@
 import os
 import time
 import requests
-import openai
+from openai import OpenAI
 
-# 1) Make sure your OPENAI_API_KEY is set in .env
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
-
-def transcribe_audio(audio_file):
-    """
-    Convert uploaded audio (webm/wav/mp3) to text via
-    OpenAI’s Transcriptions API using gpt-4o-transcribe.
-    Returns just the raw transcript string.
-    """
-    # rewind to the start
-    audio_file.seek(0)
-
-    # call the transcriptions endpoint with model=gpt-4o-transcribe
-    resp = openai.Audio.transcribe(
-        model="gpt-4o-transcribe",      # ← higher-quality snapshot
-        file=audio_file,
-        response_format="text"          # ← just get plain text back
-    )
-
-    # resp is a dict like {"text": "..."} 
-    return resp["text"]
-
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+transcription = client.audio.transcriptions.create(
+  model="gpt-4o-transcribe",
+  file=audio_file
+)
+print(transcription.text)
 
 def speak_text(text):
     """
