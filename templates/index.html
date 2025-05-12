@@ -5,20 +5,40 @@
   <title>B.O.S. v1</title>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
   <style>
+    /* === Global & Boot Screen === */
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
-      height: 100%; width: 100%;
-      background: #000; color: #fff;
-      font-family: 'Orbitron', sans-serif;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: space-between;
-      padding: 2rem 0;
+    html, body { height: 100%; width: 100%; overflow: hidden; }
+    body { font-family: 'Orbitron', sans-serif; background: #000; color: #fff; }
+
+    #boot-screen {
+      position: fixed; top:0; left:0; right:0; bottom:0;
+      background: #000; display:flex;
+      align-items:center; justify-content:center;
+      flex-direction:column; z-index:1000;
+      opacity:1; transition: opacity 1s ease;
     }
+    #boot-screen.fade-out { opacity: 0; }
+
+    #boot-screen img {
+      width: 200px; height:200px; object-fit:contain;
+      margin-bottom:1rem;
+    }
+    #boot-screen .boot-text {
+      color:#0af; font-size:1.25rem; text-shadow:0 0 8px #0af;
+    }
+
+    /* === Main UI (hidden until boot done) === */
+    #app { display:flex; flex-direction:column;
+           align-items:center; justify-content:space-between;
+           height:100%; width:100%;
+           opacity:0; transition: opacity 1s ease; }
+
     h1 {
       color: #0af; font-size: 3rem;
       text-shadow: 0 0 12px #0af;
-      margin-bottom: 1rem;
+      margin: 2rem 0 1rem;
     }
+
     #chat-log {
       width: 80%; max-width: 600px;
       height: 180px; background: #111;
@@ -28,24 +48,18 @@
     #chat-log div { margin-bottom: 0.5rem; line-height: 1.2; }
     .you { color: #0af; } .bos { color: #fff; }
 
-    /* GIF visualizer */
+    /* orb visualizer */
     #visualizer {
       width: 140px; height: 140px;
       margin: 2rem 0;
-      /* make sure it’s a perfect circle mask */
-      border-radius: 50%;
-      overflow: hidden;
-      display: block;
-      /* initial scale for heartbeat */
-      transform: scale(1);
-      transition: transform 0.2s ease-out;
+      border-radius: 50%; overflow:hidden;
+      transform: scale(1); transition: transform 0.2s ease-out;
     }
-    /* heartbeat on speaking */
     #visualizer.speaking {
       animation: heartbeat 1s ease-in-out infinite;
     }
     @keyframes heartbeat {
-      0%, 40%, 100% { transform: scale(1); }
+      0%,40%,100% { transform: scale(1); }
       10%          { transform: scale(1.2); }
       30%          { transform: scale(1.15); }
     }
@@ -53,49 +67,72 @@
     /* input area */
     #controls {
       width: 80%; max-width: 600px;
-      display: flex; margin-bottom: 1rem;
+      display: flex; margin-bottom: 2rem;
     }
     #user-input {
-      flex: 1; padding: 0.75em; font-size: 1em;
-      border: none; border-radius: 6px 0 0 6px;
-      background: #111; color: #fff; outline: none;
+      flex:1; padding:0.75em; font-size:1em;
+      border:none; border-radius:6px 0 0 6px;
+      background:#111; color:#fff; outline:none;
     }
     #send-btn {
-      padding: 0 1.25em; font-size: 1em;
-      background: #0af; border: none;
-      border-radius: 0 6px 6px 0;
-      color: #000; cursor: pointer;
-      transition: background 0.2s ease;
+      padding:0 1.25em; font-size:1em;
+      background:#0af; border:none;
+      border-radius:0 6px 6px 0; color:#000;
+      cursor:pointer; transition:background 0.2s ease;
     }
-    #send-btn:hover { background: #008fcc; }
+    #send-btn:hover { background:#008fcc; }
   </style>
 </head>
 <body>
-  <h1>B.O.S.</h1>
 
-  <div id="chat-log"></div>
-
-  <!-- Replace the CSS sphere with your GIF -->
-  <img
-    id="visualizer"
-    src="/static/orb.gif"
-    alt="BOS speaking visualizer" />
-
-  <div id="controls">
-    <input id="user-input" type="text" placeholder="Type a message…" />
-    <button id="send-btn">Send</button>
+  <!-- BOOT OVERLAY -->
+  <div id="boot-screen">
+    <img src="{{ url_for('static', filename='boot.gif') }}" alt="Boot Animation" />
+    <div class="boot-text">Initialising B.O.S. v1...</div>
   </div>
 
-  <audio id="tts-player" style="display:none;"></audio>
+  <!-- MAIN APP -->
+  <div id="app">
+    <h1>B.O.S.</h1>
+    <div id="chat-log"></div>
+
+    <img
+      id="visualizer"
+      src="{{ url_for('static', filename='orb.gif') }}"
+      alt="BOS speaking visualizer" />
+
+    <div id="controls">
+      <input id="user-input" type="text" placeholder="Type a message…" />
+      <button id="send-btn">Send</button>
+    </div>
+
+    <audio id="tts-player" style="display:none;"></audio>
+  </div>
 
   <script>
+    // Once window loads, wait your GIF duration, then fade boot away
+    window.addEventListener('load', () => {
+      const BOOT_DURATION = 3000; // adjust to your boot.gif length in ms
+      const boot = document.getElementById('boot-screen');
+      const app  = document.getElementById('app');
+
+      setTimeout(() => {
+        boot.classList.add('fade-out');
+        boot.addEventListener('transitionend', () => {
+          boot.remove();
+          // reveal main UI
+          app.style.opacity = 1;
+        });
+      }, BOOT_DURATION);
+    });
+
+    // CHAT + TTS logic
     const chatLog = document.getElementById('chat-log');
     const input   = document.getElementById('user-input');
     const btn     = document.getElementById('send-btn');
     const orb     = document.getElementById('visualizer');
     const tts     = document.getElementById('tts-player');
 
-    // When TTS plays, add heartbeat
     tts.addEventListener('play',  () => orb.classList.add('speaking'));
     tts.addEventListener('ended', () => orb.classList.remove('speaking'));
 
@@ -106,23 +143,23 @@
       chatLog.scrollTop = chatLog.scrollHeight;
       input.value = '';
 
-      // Chat API
+      // 1) send to /api/message
       let res = await fetch('/api/message', {
-        method: 'POST', headers:{'Content-Type':'application/json'},
+        method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ text })
       });
       const { reply } = await res.json();
       chatLog.innerHTML += `<div class="bos"><strong>BOS:</strong> ${reply}</div>`;
       chatLog.scrollTop = chatLog.scrollHeight;
 
-      // TTS API
-      res = await fetch('/api/speak', {
-        method: 'POST', headers:{'Content-Type':'application/json'},
+      // 2) TTS
+      res = await fetch('/api/speak',{
+        method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ text: reply })
       });
       const { url } = await res.json();
       tts.src = url;
-      tts.play();
+      await tts.play();
     }
 
     btn.addEventListener('click', sendMessage);
