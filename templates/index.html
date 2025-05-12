@@ -3,57 +3,78 @@
 <head>
   <meta charset="UTF-8" />
   <title>B.O.S. v1</title>
+  <!-- Futuristic font -->
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    /* page layout */
+    /* Reset & layout */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
-      margin: 0; padding: 0;
       height: 100%; width: 100%;
       background: #000;
       color: #fff;
-      font-family: sans-serif;
+      font-family: 'Orbitron', sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: space-between;
+      padding: 2rem 0;
     }
 
-    /* chat log */
+    /* Title */
+    h1 {
+      color: #0af;
+      font-size: 3rem;
+      text-shadow: 0 0 12px #0af;
+      margin-bottom: 1rem;
+    }
+
+    /* Chat log */
     #chat-log {
-      width: 80%;
-      max-width: 600px;
-      height: 200px;
+      width: 80%; max-width: 600px;
+      height: 180px;
       background: #111;
       border: 1px solid #333;
       border-radius: 6px;
-      padding: 1em;
+      padding: 1rem;
       overflow-y: auto;
-      margin-bottom: 2rem;
     }
-    #chat-log div { margin-bottom: 0.5em; }
-    #chat-log .you   { color: #0f8; }
-    #chat-log .bos   { color: #8cf; }
+    #chat-log div { margin-bottom: 0.5rem; line-height: 1.2; }
+    .you { color: #0af; }
+    .bos { color: #fff; }
 
-    /* the pulsing orb */
+    /* Orb visualizer */
     #visualizer {
-      width: 100px; height: 100px;
-      background: #222;
+      width: 120px; height: 120px;
+      background: radial-gradient(circle at 30% 30%, #0af, #003f6e);
       border-radius: 50%;
-      margin-bottom: 2rem;
+      box-shadow:
+        0 0 20px rgba(0,170,255,0.6),
+        inset 0 0 15px rgba(0,170,255,0.8);
+      margin: 2rem 0;
+      transform-style: preserve-3d;
+      animation: rotate 10s linear infinite;
       transition: transform 0.2s ease;
     }
+    /* pulse + rotate when speaking */
     #visualizer.speaking {
-      animation: pulse 1s infinite;
+      animation:
+        pulse 1s ease-in-out infinite,
+        rotate 10s linear infinite;
+    }
+    @keyframes rotate {
+      from { transform: rotateY(0deg) rotateX(0deg); }
+      to   { transform: rotateY(360deg) rotateX(360deg); }
     }
     @keyframes pulse {
-      0%   { transform: scale(1); }
-      50%  { transform: scale(1.3); }
-      100% { transform: scale(1); }
+      0%,100% { transform: scale(1) rotateY(0deg); }
+      50%     { transform: scale(1.3) rotateY(180deg); }
     }
 
-    /* controls */
+    /* Input area */
     #controls {
       width: 80%; max-width: 600px;
       display: flex;
+      margin-bottom: 1rem;
     }
     #user-input {
       flex: 1;
@@ -66,20 +87,23 @@
       outline: none;
     }
     #send-btn {
-      padding: 0 1em;
+      padding: 0 1.25em;
       font-size: 1em;
-      background: #0f62fe;
+      background: #0af;
       border: none;
       border-radius: 0 6px 6px 0;
-      color: #fff;
+      color: #000;
       cursor: pointer;
+      transition: background 0.2s ease;
     }
     #send-btn:hover {
-      background: #0553a4;
+      background: #008fcc;
     }
   </style>
 </head>
 <body>
+  <h1>B.O.S.</h1>
+
   <div id="chat-log"></div>
 
   <div id="visualizer"></div>
@@ -93,13 +117,13 @@
 
   <script>
     const chatLog = document.getElementById('chat-log');
-    const input    = document.getElementById('user-input');
-    const btn      = document.getElementById('send-btn');
-    const orb      = document.getElementById('visualizer');
-    const tts      = document.getElementById('tts-player');
+    const input   = document.getElementById('user-input');
+    const btn     = document.getElementById('send-btn');
+    const orb     = document.getElementById('visualizer');
+    const tts     = document.getElementById('tts-player');
 
-    // play orb animation when TTS plays
-    tts.addEventListener('play', () => orb.classList.add('speaking'));
+    // Pulse orb when TTS plays
+    tts.addEventListener('play',  () => orb.classList.add('speaking'));
     tts.addEventListener('ended', () => orb.classList.remove('speaking'));
 
     async function sendMessage() {
@@ -110,7 +134,7 @@
       chatLog.scrollTop = chatLog.scrollHeight;
       input.value = '';
 
-      // 1) get bot reply
+      // get reply
       let res = await fetch('/api/message', {
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
@@ -120,7 +144,7 @@
       chatLog.innerHTML += `<div class="bos"><strong>BOS:</strong> ${reply}</div>`;
       chatLog.scrollTop = chatLog.scrollHeight;
 
-      // 2) get TTS URL and play
+      // speak
       res = await fetch('/api/speak', {
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
