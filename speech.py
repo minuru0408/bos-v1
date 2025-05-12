@@ -1,60 +1,38 @@
 import os
-import openai
-from flask import Flask, render_template, request, jsonify
-from speech import speak_text
-from search import intelligent_search   # <-- new import
+import time
+import requests
 
-app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
+def speak_text(text):
+    """
+    Generate a TTS mp3 via ElevenLabs HTTP API and return its URL path.
+    """
+    api_key  = os.getenv("ELEVENLABS_API_KEY")
+    if not api_key:
+        raise RuntimeError("Missing ELEVENLABS_API_KEY")
 
-# Configure OpenAI key
-openai.api_key = os.getenv("OPENAI_API_KEY")
+    voice_id = os.getenv("ELEVENLABS_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb")
 
-@app.route("/")
-def index():
-    return render_template("index.html")
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
+    headers = {
+        "xi-api-key": api_key,
+        "Content-Type": "application/json",
+        "Accept": "audio/mpeg"
+    }
+    payload = {
+        "text": text,
+        "model_id": "eleven_monolingual_v1",
+        "voice_settings": {"stability":0.5,"similarity_boost":0.8}
+    }
 
-@app.route("/api/message", methods=["POST"])
-def message():
-    data = request.get_json() or {}
-    user_text = data.get("text", "")
-    resp = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role":"user","content":user_text}]
-    )
-    bot_reply = resp.choices[0].message.content
-    return jsonify({"reply": bot_reply})
+    resp = requests.post(url, json=payload, headers=headers)
+    resp.raise_for_status()
 
-@app.route("/api/speak", methods=["POST"])
-def speak():
-    data = request.get_json() or {}
-    text = data.get("text", "")
-    url = speak_text(text)
-    return jsonify({"url": url})
+    # Save MP3 so Flask can serve it
+    tts_dir = os.path.join("static", "tts")
+    os.makedirs(tts_dir, exist_ok=True)
+    filename = f"tts_{int(time.time()*1000)}.mp3"
+    path     = os.path.join(tts_dir, filename)
+    with open(path, "wb") as f:
+        f.write(resp.content)
 
-# —— New web-search endpoint —— 
-@app.route("/api/search", methods=["POST"])
-def web_search():
-    data = request.get_json() or {}
-    query = data.get("query", "").strip()
-    if not query:
-        return jsonify({"error": "No search query provided"}), 400
-
-    try:
-        items = intelligent_search(query)
-        # Simplify each item to title, snippet, and link
-        results = [
-            {
-                "title": item.get("title"),
-                "snippet": item.get("snippet"),
-                "link": item.get("link")
-            }
-            for item in items
-        ]
-        return jsonify({"results": results})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-if __name__ == "__main__":
-    port = int(os.getenv("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    return f"/static/tts/{filename}"
