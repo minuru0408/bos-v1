@@ -5,7 +5,7 @@ import time
 import requests
 import openai 
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = openai(api_key=os.getenv("OPENAI_API_KEY"))
 transcription = client.audio.transcriptions.create(
   model="gpt-4o-transcribe",
   file=audio_file
