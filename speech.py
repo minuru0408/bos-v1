@@ -1,30 +1,36 @@
-# speech.py
-
 import os
 import time
 import requests
-import openai 
+from io import BytesIO
+from openai import OpenAI
 
-client = openai(api_key=os.getenv("OPENAI_API_KEY"))
-transcription = client.audio.transcriptions.create(
-  model="gpt-4o-transcribe",
-  file=audio_file
-)
-print(transcription.text)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def transcribe_audio(audio_file):
+    try:
+        audio_bytes = audio_file.read()
+        audio_buffer = BytesIO(audio_bytes)
+        
+        transcription = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=("recording.webm", audio_buffer, "audio/webm")
+        )
+        return transcription.text
+    except Exception as e:
+        print(f"Transcription error: {e}")
+        raise
 
 def speak_text(text):
-    """
-    Generate TTS mp3 via ElevenLabs HTTP API and return its URL path.
-    (Unchanged from before.)
-    """
-    api_key  = os.getenv("ELEVEN_API_KEY") or os.getenv("ELEVENLABS_API_KEY")
-    voice_id = os.getenv("ELEVEN_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb")  # George
-
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
+    api_key = os.getenv("ELEVENLABS_API_KEY")
+    voice_id = os.getenv("ELEVEN_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb")
+    
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
     headers = {
         "xi-api-key": api_key,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "accept": "audio/mpeg"
     }
+    
     payload = {
         "text": text,
         "model_id": "eleven_monolingual_v1",
@@ -34,15 +40,19 @@ def speak_text(text):
         }
     }
 
-    response = requests.post(url, json=payload, headers=headers)
-    response.raise_for_status()
-
-    # Save the MP3 under static/tts so Flask can serve it
-    tts_dir = os.path.join("static", "tts")
-    os.makedirs(tts_dir, exist_ok=True)
-    filename = f"tts_{int(time.time() * 1000)}.mp3"
-    filepath = os.path.join(tts_dir, filename)
-    with open(filepath, "wb") as f:
-        f.write(response.content)
-
-    return f"/static/tts/{filename}"
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        
+        tts_dir = os.path.join("static", "tts")
+        os.makedirs(tts_dir, exist_ok=True)
+        filename = f"tts_{int(time.time() * 1000)}.mp3"
+        filepath = os.path.join(tts_dir, filename)
+        
+        with open(filepath, "wb") as f:
+            f.write(response.content)
+        
+        return f"/static/tts/{filename}"
+    except Exception as e:
+        print(f"TTS error: {e}")
+        raise
