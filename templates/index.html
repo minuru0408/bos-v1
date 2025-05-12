@@ -2,215 +2,138 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>B.O.S. v1 – HUD Interface</title>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"
-    rel="stylesheet"
-  />
+  <title>B.O.S. v1</title>
   <style>
-    :root {
-      --bg: #ffffff;
-      --accent: #00ffff;
-      --text: #111111;
-      --panel-bg: rgba(255,255,255,0.15);
-      --grid-color: rgba(0,255,255,0.05);
-    }
-
-    /* FULL-SCREEN GRID BACKDROP */
-    body {
-      margin: 0;
-      height: 100vh;
-      overflow: hidden;
-      background-color: var(--bg);
-      font-family: 'Orbitron', sans-serif;
-      color: var(--text);
-      position: relative;
-    }
-    body::before {
-      content: "";
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background-image:
-        repeating-linear-gradient(0deg, transparent, transparent 49px, var(--grid-color) 50px),
-        repeating-linear-gradient(90deg, transparent, transparent 49px, var(--grid-color) 50px);
-      pointer-events: none;
-    }
-
-    /* MAIN CONTAINER PANEL */
-    .container {
-      position: relative;
-      z-index: 1;
-      width: 90%;
-      max-width: 800px;
-      margin: auto;
-      top: 5vh;
-      padding: 2rem;
-      background: var(--panel-bg);
-      border: 2px solid var(--accent);
-      border-radius: 8px;
-      box-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
-      backdrop-filter: blur(8px);
-      animation: fadeIn 0.6s ease-out;
-    }
-
-    /* CENTRAL HUD CIRCLE */
-    .container::after {
-      content: "";
-      position: absolute;
-      top: 50%; left: 50%;
-      width: 300px; height: 300px;
-      margin: -150px 0 0 -150px;
-      border: 2px dashed var(--accent);
-      border-radius: 50%;
-      opacity: 0.2;
-      pointer-events: none;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: scale(0.95) }
-      to   { opacity: 1; transform: scale(1)     }
-    }
-
-    h1 {
-      text-align: center;
-      color: var(--accent);
-      text-shadow: 0 0 8px var(--accent);
-      margin-bottom: 1rem;
-    }
-
-    /* CHAT LOG WINDOW */
-    #chat-log {
-      position: relative;
-      height: 50vh;
-      overflow-y: auto;
-      padding: 1rem;
-      border: 1px solid var(--accent);
-      border-radius: 6px;
-      background: var(--bg);
-      box-shadow: inset 0 0 10px rgba(0,255,255,0.1);
-      margin-bottom: 1rem;
-    }
-    #chat-log::-webkit-scrollbar {
-      width: 6px;
-    }
-    #chat-log::-webkit-scrollbar-thumb {
-      background: var(--accent);
-      border-radius: 3px;
-    }
-    .message {
-      margin-bottom: 0.75rem;
-      line-height: 1.4;
-    }
-    .message.you { color: #333333; }
-    .message.bos { color: var(--accent); }
-
-    /* INPUT + BUTTONS */
-    #controls {
+    /* page layout */
+    html, body {
+      margin: 0; padding: 0;
+      height: 100%; width: 100%;
+      background: #000;
+      color: #fff;
+      font-family: sans-serif;
       display: flex;
-      gap: 0.5rem;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* chat log */
+    #chat-log {
+      width: 80%;
+      max-width: 600px;
+      height: 200px;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 1em;
+      overflow-y: auto;
+      margin-bottom: 2rem;
+    }
+    #chat-log div { margin-bottom: 0.5em; }
+    #chat-log .you   { color: #0f8; }
+    #chat-log .bos   { color: #8cf; }
+
+    /* the pulsing orb */
+    #visualizer {
+      width: 100px; height: 100px;
+      background: #222;
+      border-radius: 50%;
+      margin-bottom: 2rem;
+      transition: transform 0.2s ease;
+    }
+    #visualizer.speaking {
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+      0%   { transform: scale(1); }
+      50%  { transform: scale(1.3); }
+      100% { transform: scale(1); }
+    }
+
+    /* controls */
+    #controls {
+      width: 80%; max-width: 600px;
+      display: flex;
     }
     #user-input {
       flex: 1;
-      padding: 0.75rem;
+      padding: 0.75em;
+      font-size: 1em;
       border: none;
-      border-radius: 6px;
-      background: var(--panel-bg);
-      color: var(--text);
-      font-size: 1rem;
+      border-radius: 6px 0 0 6px;
+      background: #111;
+      color: #fff;
       outline: none;
-      box-shadow: inset 0 0 8px var(--accent);
-      transition: box-shadow 0.3s;
     }
-    #user-input:focus {
-      box-shadow: inset 0 0 12px var(--accent);
-    }
-    button {
-      background: var(--accent);
-      color: white;
+    #send-btn {
+      padding: 0 1em;
+      font-size: 1em;
+      background: #0f62fe;
       border: none;
-      border-radius: 6px;
-      padding: 0 1rem;
-      font-size: 1rem;
+      border-radius: 0 6px 6px 0;
+      color: #fff;
       cursor: pointer;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      box-shadow: 0 0 8px var(--accent);
-      transition: background 0.3s, box-shadow 0.3s;
     }
-    button:hover {
-      background: #e0ffff;
-      color: var(--accent);
-      box-shadow: 0 0 12px var(--accent);
-    }
-    #tts-player {
-      display: none;
+    #send-btn:hover {
+      background: #0553a4;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>B.O.S. v1</h1>
-    <div id="chat-log"></div>
-    <div id="controls">
-      <input
-        id="user-input"
-        type="text"
-        placeholder="Type your command, Sir…"
-      />
-      <button id="send-btn">Send</button>
-    </div>
-    <audio id="tts-player" controls></audio>
+  <div id="chat-log"></div>
+
+  <div id="visualizer"></div>
+
+  <div id="controls">
+    <input id="user-input" type="text" placeholder="Type a message…" />
+    <button id="send-btn">Send</button>
   </div>
 
-  <script>
-    const chatLog   = document.getElementById('chat-log');
-    const userInput = document.getElementById('user-input');
-    const sendBtn   = document.getElementById('send-btn');
-    const ttsPlayer = document.getElementById('tts-player');
+  <audio id="tts-player" style="display:none;"></audio>
 
-    function appendMessage(who, text) {
-      const div = document.createElement('div');
-      div.className = 'message ' + (who === 'You' ? 'you' : 'bos');
-      div.innerHTML = `<strong>${who}:</strong> ${text}`;
-      chatLog.appendChild(div);
-      chatLog.scrollTop = chatLog.scrollHeight;
-    }
+  <script>
+    const chatLog = document.getElementById('chat-log');
+    const input    = document.getElementById('user-input');
+    const btn      = document.getElementById('send-btn');
+    const orb      = document.getElementById('visualizer');
+    const tts      = document.getElementById('tts-player');
+
+    // play orb animation when TTS plays
+    tts.addEventListener('play', () => orb.classList.add('speaking'));
+    tts.addEventListener('ended', () => orb.classList.remove('speaking'));
 
     async function sendMessage() {
-      const text = userInput.value.trim();
+      const text = input.value.trim();
       if (!text) return;
-      appendMessage('You', text);
-      userInput.value = '';
+      // show user
+      chatLog.innerHTML += `<div class="you"><strong>You:</strong> ${text}</div>`;
+      chatLog.scrollTop = chatLog.scrollHeight;
+      input.value = '';
 
-      // 1) Chat
+      // 1) get bot reply
       let res = await fetch('/api/message', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: { 'Content-Type':'application/json' },
         body: JSON.stringify({ text })
       });
       const { reply } = await res.json();
-      appendMessage('BOS', reply);
+      chatLog.innerHTML += `<div class="bos"><strong>BOS:</strong> ${reply}</div>`;
+      chatLog.scrollTop = chatLog.scrollHeight;
 
-      // 2) TTS
+      // 2) get TTS URL and play
       res = await fetch('/api/speak', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: { 'Content-Type':'application/json' },
         body: JSON.stringify({ text: reply })
       });
       const { url } = await res.json();
-      if (url) {
-        ttsPlayer.src = url;
-        ttsPlayer.style.display = 'block';
-        await ttsPlayer.play().catch(()=>{/* ignore */});
-      }
+      tts.src = url;
+      tts.play();
     }
 
-    sendBtn.addEventListener('click', sendMessage);
-    userInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        sendMessage();
-      }
+    btn.addEventListener('click', sendMessage);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') sendMessage();
     });
   </script>
 </body>
