@@ -3,42 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <title>B.O.S. v1</title>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"
+    rel="stylesheet"
+  >
   <style>
-    /* === Global & Boot Screen === */
+    /* GLOBAL RESET */
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; width: 100%; overflow: hidden; }
-    body { font-family: 'Orbitron', sans-serif; background: #000; color: #fff; }
-
-    #boot-screen {
-      position: fixed; top:0; left:0; right:0; bottom:0;
-      background: #000; display:flex;
-      align-items:center; justify-content:center;
-      flex-direction:column; z-index:1000;
-      opacity:1; transition: opacity 1s ease;
-    }
-    #boot-screen.fade-out { opacity: 0; }
-
-    #boot-screen img {
-      width: 200px; height:200px; object-fit:contain;
-      margin-bottom:1rem;
-    }
-    #boot-screen .boot-text {
-      color:#0af; font-size:1.25rem; text-shadow:0 0 8px #0af;
+    html, body {
+      height: 100%; width: 100%;
+      background: #000; color: #fff;
+      font-family: 'Orbitron', sans-serif;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: space-between;
+      padding: 2rem 0;
     }
 
-    /* === Main UI (hidden until boot done) === */
-    #app { display:flex; flex-direction:column;
-           align-items:center; justify-content:space-between;
-           height:100%; width:100%;
-           opacity:0; transition: opacity 1s ease; }
-
+    /* TITLE */
     h1 {
-      color: #0af; font-size: 3rem;
-      text-shadow: 0 0 12px #0af;
-      margin: 2rem 0 1rem;
+      color: #fff;              /* was #0af */
+      font-size: 3rem;
+      text-shadow: 0 0 12px #fff;/* was #0af */
+      margin-bottom: 1rem;
     }
 
+    /* CHAT LOG */
     #chat-log {
       width: 80%; max-width: 600px;
       height: 180px; background: #111;
@@ -46,120 +35,153 @@
       padding: 1rem; overflow-y: auto;
     }
     #chat-log div { margin-bottom: 0.5rem; line-height: 1.2; }
-    .you { color: #0af; } .bos { color: #fff; }
+    .you  { color: #fff; }       /* was blue */
+    .bos  { color: #fff; }
 
-    /* orb visualizer */
+    /* BOOT OVERLAY */
+    #boot-screen {
+      position: fixed; inset: 0;
+      background: #000;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 999;
+      transition: opacity 0.8s ease;
+    }
+    /* Make the boot gif really big */
+    #boot-screen img {
+      width: 300px;    /* increased from 200px */
+      height: auto;
+      margin-bottom: 1rem;
+    }
+    #boot-screen.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .boot-text {
+      color: #fff;
+      font-size: 1.2rem;
+      text-shadow: 0 0 6px #fff;
+    }
+
+    /* SPEAK VISUALIZER (orb.gif) */
     #visualizer {
       width: 140px; height: 140px;
       margin: 2rem 0;
-      border-radius: 50%; overflow:hidden;
-      transform: scale(1); transition: transform 0.2s ease-out;
+      border-radius: 50%;
+      overflow: hidden;
+      transform: scale(1);
+      transition: transform 0.2s ease-out;
     }
     #visualizer.speaking {
       animation: heartbeat 1s ease-in-out infinite;
     }
     @keyframes heartbeat {
-      0%,40%,100% { transform: scale(1); }
-      10%          { transform: scale(1.2); }
-      30%          { transform: scale(1.15); }
+      0%, 40%, 100% { transform: scale(1); }
+      10%           { transform: scale(1.2); }
+      30%           { transform: scale(1.15); }
     }
 
-    /* input area */
+    /* INPUT CONTROLS */
     #controls {
       width: 80%; max-width: 600px;
-      display: flex; margin-bottom: 2rem;
+      display: flex; margin-bottom: 1rem;
     }
     #user-input {
-      flex:1; padding:0.75em; font-size:1em;
-      border:none; border-radius:6px 0 0 6px;
-      background:#111; color:#fff; outline:none;
+      flex: 1; padding: 0.75em; font-size: 1em;
+      border: none; border-radius: 6px 0 0 6px;
+      background: #111; color: #fff; outline: none;
     }
     #send-btn {
-      padding:0 1.25em; font-size:1em;
-      background:#0af; border:none;
-      border-radius:0 6px 6px 0; color:#000;
-      cursor:pointer; transition:background 0.2s ease;
+      padding: 0 1.25em; font-size: 1em;
+      background: #fff;             /* was blue */
+      border: none;
+      border-radius: 0 6px 6px 0;
+      color: #000; cursor: pointer;
+      transition: background 0.2s ease;
     }
-    #send-btn:hover { background:#008fcc; }
+    #send-btn:hover {
+      background: #eee;             /* light hover */
+    }
   </style>
 </head>
 <body>
 
-  <!-- BOOT OVERLAY -->
+  <!-- BOOT SEQUENCE OVERLAY -->
   <div id="boot-screen">
-    <img src="{{ url_for('static', filename='boot.gif') }}" alt="Boot Animation" />
-    <div class="boot-text">Initialising B.O.S. v1...</div>
+    <img src="{{ url_for('static', filename='boot.gif') }}" alt="Boot Animation">
+    <div class="boot-text">Initialising B.O.S. v1…</div>
   </div>
 
-  <!-- MAIN APP -->
-  <div id="app">
-    <h1>B.O.S.</h1>
-    <div id="chat-log"></div>
+  <!-- MAIN UI -->
+  <h1>B.O.S.</h1>
 
-    <img
-      id="visualizer"
-      src="{{ url_for('static', filename='orb.gif') }}"
-      alt="BOS speaking visualizer" />
+  <div id="chat-log"></div>
 
-    <div id="controls">
-      <input id="user-input" type="text" placeholder="Type a message…" />
-      <button id="send-btn">Send</button>
-    </div>
+  <img
+    id="visualizer"
+    src="{{ url_for('static', filename='orb.gif') }}"
+    alt="BOS speaking visualizer"
+  />
 
-    <audio id="tts-player" style="display:none;"></audio>
+  <div id="controls">
+    <input
+      id="user-input"
+      type="text"
+      placeholder="Type a message…"
+    />
+    <button id="send-btn">Send</button>
   </div>
+
+  <audio id="tts-player" style="display:none;"></audio>
 
   <script>
-    // Once window loads, wait your GIF duration, then fade boot away
+    // FADE OUT BOOT OVERLAY WHEN PAGE LOADED
     window.addEventListener('load', () => {
-      const BOOT_DURATION = 3000; // adjust to your boot.gif length in ms
       const boot = document.getElementById('boot-screen');
-      const app  = document.getElementById('app');
-
-      setTimeout(() => {
-        boot.classList.add('fade-out');
-        boot.addEventListener('transitionend', () => {
-          boot.remove();
-          // reveal main UI
-          app.style.opacity = 1;
-        });
-      }, BOOT_DURATION);
+      // give the gif a second to play
+      setTimeout(() => boot.classList.add('fade-out'), 1200);
     });
 
-    // CHAT + TTS logic
+    // CACHE DOM
     const chatLog = document.getElementById('chat-log');
     const input   = document.getElementById('user-input');
     const btn     = document.getElementById('send-btn');
     const orb     = document.getElementById('visualizer');
     const tts     = document.getElementById('tts-player');
 
+    // ORB “HEARTBEAT” WHEN BOS IS SPEAKING
     tts.addEventListener('play',  () => orb.classList.add('speaking'));
     tts.addEventListener('ended', () => orb.classList.remove('speaking'));
 
+    // SEND + SPEAK LOGIC
     async function sendMessage() {
       const text = input.value.trim();
       if (!text) return;
+
+      // show user line
       chatLog.innerHTML += `<div class="you"><strong>You:</strong> ${text}</div>`;
       chatLog.scrollTop = chatLog.scrollHeight;
-      input.value = '';
+      input.value = "";
 
-      // 1) send to /api/message
+      // 1) Chat API
       let res = await fetch('/api/message', {
-        method:'POST', headers:{'Content-Type':'application/json'},
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ text })
       });
       const { reply } = await res.json();
       chatLog.innerHTML += `<div class="bos"><strong>BOS:</strong> ${reply}</div>`;
       chatLog.scrollTop = chatLog.scrollHeight;
 
-      // 2) TTS
-      res = await fetch('/api/speak',{
-        method:'POST', headers:{'Content-Type':'application/json'},
+      // 2) TTS API
+      res = await fetch('/api/speak', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ text: reply })
       });
       const { url } = await res.json();
       tts.src = url;
-      await tts.play();
+      tts.play();
     }
 
     btn.addEventListener('click', sendMessage);
