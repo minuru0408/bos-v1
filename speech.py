@@ -3,7 +3,7 @@
 import os
 import time
 import requests
-from openai import OpenAI
+import openai 
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 transcription = client.audio.transcriptions.create(
