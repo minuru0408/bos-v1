@@ -3,102 +3,71 @@
 <head>
   <meta charset="UTF-8" />
   <title>B.O.S. v1</title>
-  <!-- Futuristic font -->
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    /* Reset & layout */
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
       height: 100%; width: 100%;
-      background: #000;
-      color: #fff;
+      background: #000; color: #fff;
       font-family: 'Orbitron', sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: space-between;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: space-between;
       padding: 2rem 0;
     }
-
-    /* Title */
     h1 {
-      color: #0af;
-      font-size: 3rem;
+      color: #0af; font-size: 3rem;
       text-shadow: 0 0 12px #0af;
       margin-bottom: 1rem;
     }
-
-    /* Chat log */
     #chat-log {
       width: 80%; max-width: 600px;
-      height: 180px;
-      background: #111;
-      border: 1px solid #333;
-      border-radius: 6px;
-      padding: 1rem;
-      overflow-y: auto;
+      height: 180px; background: #111;
+      border: 1px solid #333; border-radius: 6px;
+      padding: 1rem; overflow-y: auto;
     }
     #chat-log div { margin-bottom: 0.5rem; line-height: 1.2; }
-    .you { color: #0af; }
-    .bos { color: #fff; }
+    .you { color: #0af; } .bos { color: #fff; }
 
-    /* Orb visualizer */
+    /* GIF visualizer */
     #visualizer {
-      width: 120px; height: 120px;
-      background: radial-gradient(circle at 30% 30%, #0af, #003f6e);
-      border-radius: 50%;
-      box-shadow:
-        0 0 20px rgba(0,170,255,0.6),
-        inset 0 0 15px rgba(0,170,255,0.8);
+      width: 140px; height: 140px;
       margin: 2rem 0;
-      transform-style: preserve-3d;
-      animation: rotate 10s linear infinite;
-      transition: transform 0.2s ease;
+      /* make sure it’s a perfect circle mask */
+      border-radius: 50%;
+      overflow: hidden;
+      display: block;
+      /* initial scale for heartbeat */
+      transform: scale(1);
+      transition: transform 0.2s ease-out;
     }
-    /* pulse + rotate when speaking */
+    /* heartbeat on speaking */
     #visualizer.speaking {
-      animation:
-        pulse 1s ease-in-out infinite,
-        rotate 10s linear infinite;
+      animation: heartbeat 1s ease-in-out infinite;
     }
-    @keyframes rotate {
-      from { transform: rotateY(0deg) rotateX(0deg); }
-      to   { transform: rotateY(360deg) rotateX(360deg); }
-    }
-    @keyframes pulse {
-      0%,100% { transform: scale(1) rotateY(0deg); }
-      50%     { transform: scale(1.3) rotateY(180deg); }
+    @keyframes heartbeat {
+      0%, 40%, 100% { transform: scale(1); }
+      10%          { transform: scale(1.2); }
+      30%          { transform: scale(1.15); }
     }
 
-    /* Input area */
+    /* input area */
     #controls {
       width: 80%; max-width: 600px;
-      display: flex;
-      margin-bottom: 1rem;
+      display: flex; margin-bottom: 1rem;
     }
     #user-input {
-      flex: 1;
-      padding: 0.75em;
-      font-size: 1em;
-      border: none;
-      border-radius: 6px 0 0 6px;
-      background: #111;
-      color: #fff;
-      outline: none;
+      flex: 1; padding: 0.75em; font-size: 1em;
+      border: none; border-radius: 6px 0 0 6px;
+      background: #111; color: #fff; outline: none;
     }
     #send-btn {
-      padding: 0 1.25em;
-      font-size: 1em;
-      background: #0af;
-      border: none;
+      padding: 0 1.25em; font-size: 1em;
+      background: #0af; border: none;
       border-radius: 0 6px 6px 0;
-      color: #000;
-      cursor: pointer;
+      color: #000; cursor: pointer;
       transition: background 0.2s ease;
     }
-    #send-btn:hover {
-      background: #008fcc;
-    }
+    #send-btn:hover { background: #008fcc; }
   </style>
 </head>
 <body>
@@ -106,7 +75,11 @@
 
   <div id="chat-log"></div>
 
-  <div id="visualizer"></div>
+  <!-- Replace the CSS sphere with your GIF -->
+  <img
+    id="visualizer"
+    src="/static/orb.gif"
+    alt="BOS speaking visualizer" />
 
   <div id="controls">
     <input id="user-input" type="text" placeholder="Type a message…" />
@@ -122,32 +95,29 @@
     const orb     = document.getElementById('visualizer');
     const tts     = document.getElementById('tts-player');
 
-    // Pulse orb when TTS plays
+    // When TTS plays, add heartbeat
     tts.addEventListener('play',  () => orb.classList.add('speaking'));
     tts.addEventListener('ended', () => orb.classList.remove('speaking'));
 
     async function sendMessage() {
       const text = input.value.trim();
       if (!text) return;
-      // show user
       chatLog.innerHTML += `<div class="you"><strong>You:</strong> ${text}</div>`;
       chatLog.scrollTop = chatLog.scrollHeight;
       input.value = '';
 
-      // get reply
+      // Chat API
       let res = await fetch('/api/message', {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json' },
+        method: 'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ text })
       });
       const { reply } = await res.json();
       chatLog.innerHTML += `<div class="bos"><strong>BOS:</strong> ${reply}</div>`;
       chatLog.scrollTop = chatLog.scrollHeight;
 
-      // speak
+      // TTS API
       res = await fetch('/api/speak', {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json' },
+        method: 'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ text: reply })
       });
       const { url } = await res.json();
