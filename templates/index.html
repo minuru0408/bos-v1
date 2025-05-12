@@ -63,27 +63,13 @@
       text-shadow: 0 0 12px #fff;
     }
 
-    /* CHAT LOG */
-    #chat-log {
-      flex: 1;
-      width: 80%; max-width: 600px;
-      background: #111;
-      border: 1px solid #333;
-      border-radius: 6px;
-      padding: 1rem;
-      margin: 1rem 0;
-      overflow-y: auto;
-    }
-    #chat-log div { margin-bottom: .5rem; }
-    .you { color: #0af; }
-    .bos { color: #fff; }
-
-    /* VISUALIZER */
+    /* VISUALIZER (now above chat) */
     #visualizer {
       width: 140px; height: 140px;
       border-radius: 50%;
       overflow: hidden;
       transition: transform 0.2s ease-out;
+      margin-bottom: 1rem;
     }
     #visualizer.speaking {
       animation: heartbeat 1s ease-in-out infinite;
@@ -93,6 +79,21 @@
       10%          { transform: scale(1.2); }
       30%          { transform: scale(1.15); }
     }
+
+    /* CHAT LOG */
+    #chat-log {
+      width: 80%; max-width: 600px;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 1rem;
+      flex: 1;
+      overflow-y: auto;
+      margin-bottom: 1rem;
+    }
+    #chat-log div { margin-bottom: .5rem; }
+    .you { color: #0af; }
+    .bos { color: #fff; }
 
     /* INPUT CONTROLS */
     #controls {
@@ -138,13 +139,15 @@
   <div id="main-content">
     <h1>B.O.S.</h1>
 
-    <div id="chat-log"></div>
-
+    <!-- moved orb here -->
     <img
       id="visualizer"
       src="{{ url_for('static', filename='orb.gif') }}"
       alt="BOS speaking visualizer"
     />
+
+    <!-- chat log + controls stay together -->
+    <div id="chat-log"></div>
 
     <div id="controls">
       <input
@@ -161,10 +164,9 @@
   <script>
     // 1) handle boot->main fade
     window.addEventListener('DOMContentLoaded', () => {
-      const boot   = document.getElementById('boot-screen');
-      const main   = document.getElementById('main-content');
+      const boot = document.getElementById('boot-screen');
+      const main = document.getElementById('main-content');
 
-      // after 3s fade out boot screen
       setTimeout(() => {
         boot.classList.add('fade-out');
         boot.addEventListener('transitionend', () => {
@@ -190,12 +192,10 @@
       const text = input.value.trim();
       if (!text) return;
 
-      // show user
       chatLog.innerHTML += `<div class="you"><strong>You:</strong> ${text}</div>`;
       chatLog.scrollTop = chatLog.scrollHeight;
       input.value = '';
 
-      // Chat API call
       let res = await fetch('/api/message', {
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
@@ -205,7 +205,6 @@
       chatLog.innerHTML += `<div class="bos"><strong>BOS:</strong> ${reply}</div>`;
       chatLog.scrollTop = chatLog.scrollHeight;
 
-      // TTS API call
       res = await fetch('/api/speak', {
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
