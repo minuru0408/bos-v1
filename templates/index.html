@@ -26,17 +26,9 @@
       opacity: 1;
       transition: opacity 1s ease-out;
     }
-    #boot-screen.fade-out {
-      opacity: 0;
-    }
-    #boot-screen img {
-      width: 60vw; max-width: 600px;
-      height: auto;
-    }
-    #boot-text {
-      margin-top: 1rem;
-      font-size: 1.5rem;
-    }
+    #boot-screen.fade-out { opacity: 0; }
+    #boot-screen img { width: 60vw; max-width: 600px; }
+    #boot-text { margin-top: 1rem; font-size: 1.5rem; }
 
     /* MAIN APP (hidden until boot done) */
     #main-content {
@@ -54,10 +46,7 @@
       opacity: 1;
     }
 
-    h1 {
-      font-size: 3rem;
-      text-shadow: 0 0 12px #fff;
-    }
+    h1 { font-size: 3rem; text-shadow: 0 0 12px #fff; }
 
     /* VISUALIZER */
     #visualizer {
@@ -72,8 +61,8 @@
     }
     @keyframes heartbeat {
       0%,40%,100% { transform: scale(1); }
-      10%          { transform: scale(1.2); }
-      30%          { transform: scale(1.15); }
+      10% { transform: scale(1.2); }
+      30% { transform: scale(1.15); }
     }
 
     /* CHAT LOG */
@@ -118,6 +107,7 @@
       transition: background 0.2s ease;
     }
     #send-btn:hover { background: #ddd; }
+
     #record-btn {
       margin-left: .5rem;
       padding: 0 .75em;
@@ -147,17 +137,14 @@
   <div id="main-content">
     <h1>B.O.S.</h1>
 
-    <!-- orb visualizer -->
     <img
       id="visualizer"
       src="{{ url_for('static', filename='orb.gif') }}"
       alt="Visualizing..."
     />
 
-    <!-- chat log -->
     <div id="chat-log"></div>
 
-    <!-- controls -->
     <div id="controls">
       <input
         id="user-input"
@@ -172,7 +159,7 @@
   </div>
 
   <script>
-    // Boot → fade out → show main
+    // 1) Boot logic
     document.addEventListener('DOMContentLoaded', () => {
       const boot = document.getElementById('boot-screen');
       const main = document.getElementById('main-content');
@@ -186,7 +173,7 @@
       }, 3000);
     });
 
-    // Single toggle Record/Stop → Whisper → fill input
+    // 2) Record/Stop toggle
     const recordBtn = document.getElementById('record-btn');
     const chatInput = document.getElementById('user-input');
 
@@ -212,7 +199,6 @@
         mediaRecorder.start();
         recordBtn.textContent = '⏹ Stop';
         isRecording = true;
-
       } else {
         mediaRecorder.stop();
         recordBtn.textContent = '🎤 Record';
