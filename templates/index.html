@@ -1,210 +1,248 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>B.O.S. v1</title>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"
-    rel="stylesheet"
-  />
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
-      width: 100%; height: 100%;
-      background: #000; color: #fff;
-      font-family: 'Orbitron', sans-serif;
-      overflow: hidden;
-    }
+ <meta charset="UTF-8" />
+ <title>B.O.S. v1</title>
+ <link
+   href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"
+   rel="stylesheet"
+ />
+ <style>
+   * { box-sizing: border-box; margin: 0; padding: 0; }
+   html, body {
+     width: 100%; height: 100%;
+     background: #000; color: #fff;
+     font-family: 'Orbitron', sans-serif;
+     overflow: hidden;
+   }
+   /* BOOT SCREEN */
+   #boot-screen {
+     position: fixed; inset: 0;
+     background: #000;
+     display: flex; flex-direction: column;
+     align-items: center; justify-content: center;
+     z-index: 1000;
+     opacity: 1;
+     transition: opacity 1s ease-out;
+   }
+   #boot-screen.fade-out {
+     opacity: 0;
+   }
+   #boot-screen img {
+     width: 60vw; max-width: 600px;
+     height: auto;
+     display: block;
+   }
+   #boot-text {
+     margin-top: 1rem;
+     font-size: 1.5rem;
+     color: #fff;
+   }
 
-    /* BOOT SCREEN */
-    #boot-screen {
-      position: fixed; inset: 0;
-      background: #000;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      z-index: 1000;
-      opacity: 1;
-      transition: opacity 1s ease-out;
-    }
-    #boot-screen.fade-out { opacity: 0; }
-    #boot-screen img { width: 60vw; max-width: 600px; }
-    #boot-text { margin-top: 1rem; font-size: 1.5rem; }
 
-    /* MAIN APP (hidden until boot done) */
-    #main-content {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: space-between;
-      height: 100%; width: 100%;
-      padding: 2rem 0;
-      opacity: 0;
-      transition: opacity 1s ease-in;
-    }
-    #main-content.fade-in {
-      display: flex;
-      opacity: 1;
-    }
+   /* MAIN APP (hidden until boot done) */
+   #main-content {
+     position: relative;
+     display: none;              /* will switch to flex */
+     flex-direction: column;
+     align-items: center;
+     justify-content: space-between;
+     height: 100%; width: 100%;
+     padding: 2rem 0;
+     opacity: 0;
+     transition: opacity 1s ease-in;
+   }
+   #main-content.fade-in {
+     display: flex;
+     opacity: 1;
+   }
 
-    h1 { font-size: 3rem; text-shadow: 0 0 12px #fff; }
 
-    /* VISUALIZER */
-    #visualizer {
-      width: 140px; height: 140px;
-      border-radius: 50%;
-      overflow: hidden;
-      margin-bottom: 1rem;
-      transition: transform 0.2s ease-out;
-    }
-    #visualizer.speaking {
-      animation: heartbeat 1s ease-in-out infinite;
-    }
-    @keyframes heartbeat {
-      0%,40%,100% { transform: scale(1); }
-      10% { transform: scale(1.2); }
-      30% { transform: scale(1.15); }
-    }
+   /* HEADER */
+   h1 {
+     font-size: 3rem;
+     color: #fff;
+     text-shadow: 0 0 12px #fff;
+   }
 
-    /* CHAT LOG */
-    #chat-log {
-      width: 80%; max-width: 600px;
-      background: #111;
-      border: 1px solid #333;
-      border-radius: 6px;
-      padding: 1rem;
-      flex: 1;
-      overflow-y: auto;
-      margin-bottom: 1rem;
-    }
-    #chat-log div { margin-bottom: .5rem; }
-    .you { color: #0af; }
-    .bos { color: #fff; }
 
-    /* INPUT CONTROLS */
-    #controls {
-      width: 80%; max-width: 600px;
-      display: flex;
-      margin-bottom: 1rem;
-    }
-    #user-input {
-      flex: 1;
-      padding: .75em;
-      border: none;
-      border-radius: 6px 0 0 6px;
-      background: #111;
-      color: #fff;
-      outline: none;
-      font-size: 1em;
-    }
-    #send-btn {
-      padding: 0 .75em;
-      background: #fff;
-      color: #000;
-      border: none;
-      border-radius: 0 6px 6px 0;
-      cursor: pointer;
-      font-size: 1em;
-      transition: background 0.2s ease;
-    }
-    #send-btn:hover { background: #ddd; }
+   /* VISUALIZER (now above chat) */
+   #visualizer {
+     width: 140px; height: 140px;
+     border-radius: 50%;
+     overflow: hidden;
+     transition: transform 0.2s ease-out;
+     margin-bottom: 1rem;
+   }
+   #visualizer.speaking {
+     animation: heartbeat 1s ease-in-out infinite;
+   }
+   @keyframes heartbeat {
+     0%,40%,100% { transform: scale(1); }
+     10%          { transform: scale(1.2); }
+     30%          { transform: scale(1.15); }
+   }
 
-    #record-btn {
-      margin-left: .5rem;
-      padding: 0 .75em;
-      background: #222;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 1em;
-      transition: background 0.2s ease;
-    }
-    #record-btn:hover { background: #333; }
-  </style>
+
+   /* CHAT LOG */
+   #chat-log {
+     width: 80%; max-width: 600px;
+     background: #111;
+     border: 1px solid #333;
+     border-radius: 6px;
+     padding: 1rem;
+     flex: 1;
+     overflow-y: auto;
+     margin-bottom: 1rem;
+   }
+   #chat-log div { margin-bottom: .5rem; }
+   .you { color: #0af; }
+   .bos { color: #fff; }
+
+
+   /* INPUT CONTROLS */
+   #controls {
+     width: 80%; max-width: 600px;
+     display: flex;
+     margin-bottom: 1rem;
+   }
+   #user-input {
+     flex: 1;
+     padding: .75em;
+     border: none;
+     border-radius: 6px 0 0 6px;
+     background: #111;
+     color: #fff;
+     outline: none;
+     font-size: 1em;
+   }
+   #send-btn {
+     padding: 0 .75em;
+     background: #fff;
+     color: #000;
+     border: none;
+     border-radius: 0 6px 6px 0;
+     cursor: pointer;
+     font-size: 1em;
+     transition: background 0.2s ease;
+   }
+   #send-btn:hover { background: #ddd; }
+ </style>
 </head>
 <body>
 
-  <!-- BOOT SCREEN -->
-  <div id="boot-screen">
-    <img
-      src="{{ url_for('static', filename='boot.gif') }}"
-      alt="B.O.S. Boot Sequence"
-    />
-    <div id="boot-text">Initializing B.O.S...</div>
-  </div>
 
-  <!-- MAIN APP -->
-  <div id="main-content">
-    <h1>B.O.S.</h1>
+ <!-- BOOT SCREEN -->
+ <div id="boot-screen">
+   <img
+     src="{{ url_for('static', filename='boot.gif') }}"
+     alt="B.O.S. Boot Sequence"
+   />
+   <div id="boot-text">Initializing B.O.S...</div>
+ </div>
 
-    <img
-      id="visualizer"
-      src="{{ url_for('static', filename='orb.gif') }}"
-      alt="Visualizing..."
-    />
 
-    <div id="chat-log"></div>
+ <!-- MAIN APP -->
+ <div id="main-content">
+   <h1>B.O.S.</h1>
 
-    <div id="controls">
-      <input
-        id="user-input"
-        type="text"
-        placeholder="Type a message…"
-      />
-      <button id="send-btn">Send</button>
-      <button id="record-btn">🎤 Record</button>
-    </div>
 
-    <audio id="tts-player" style="display:none;"></audio>
-  </div>
+   <!-- moved orb here -->
+   <img
+     id="visualizer"
+     src="{{ url_for('static', filename='orb.gif') }}"
+     alt="BOS speaking visualizer"
+   />
 
-  <script>
-    // 1) Boot logic
-    document.addEventListener('DOMContentLoaded', () => {
-      const boot = document.getElementById('boot-screen');
-      const main = document.getElementById('main-content');
 
-      setTimeout(() => {
-        boot.classList.add('fade-out');
-        setTimeout(() => {
-          boot.style.display = 'none';
-          main.classList.add('fade-in');
-        }, 1000);
-      }, 3000);
-    });
+   <!-- chat log + controls stay together -->
+   <div id="chat-log"></div>
 
-    // 2) Record/Stop toggle
-    const recordBtn = document.getElementById('record-btn');
-    const chatInput = document.getElementById('user-input');
 
-    let mediaRecorder, audioChunks = [], isRecording = false;
+   <div id="controls">
+     <input
+       id="user-input"
+       type="text"
+       placeholder="Type a message…"
+     />
+     <button id="send-btn">Send</button>
+   </div>
 
-    recordBtn.addEventListener('click', async () => {
-      if (!isRecording) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-        audioChunks = [];
 
-        mediaRecorder.addEventListener('dataavailable', e => audioChunks.push(e.data));
-        mediaRecorder.addEventListener('stop', async () => {
-          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-          const form = new FormData();
-          form.append('file', audioBlob, 'voice.webm');
+   <audio id="tts-player" style="display:none;"></audio>
+ </div>
 
-          const res = await fetch('/api/transcribe', { method: 'POST', body: form });
-          const json = await res.json();
-          if (json.text) chatInput.value = json.text;
-        });
 
-        mediaRecorder.start();
-        recordBtn.textContent = '⏹ Stop';
-        isRecording = true;
-      } else {
-        mediaRecorder.stop();
-        recordBtn.textContent = '🎤 Record';
-        isRecording = false;
-      }
-    });
-  </script>
+ <script>
+   // 1) handle boot->main fade
+   window.addEventListener('DOMContentLoaded', () => {
+     const boot = document.getElementById('boot-screen');
+     const main = document.getElementById('main-content');
+
+
+     setTimeout(() => {
+       boot.classList.add('fade-out');
+       boot.addEventListener('transitionend', () => {
+         boot.style.display = 'none';
+         main.classList.add('fade-in');
+       }, { once: true });
+     }, 3000);
+   });
+
+
+   // grab DOM nodes
+   const chatLog = document.getElementById('chat-log');
+   const input   = document.getElementById('user-input');
+   const btn     = document.getElementById('send-btn');
+   const orb     = document.getElementById('visualizer');
+   const tts     = document.getElementById('tts-player');
+
+
+   // animate orb when TTS plays
+   tts.addEventListener('play',  () => orb.classList.add('speaking'));
+   tts.addEventListener('ended', () => orb.classList.remove('speaking'));
+
+
+   // send & receive
+   async function sendMessage() {
+     const text = input.value.trim();
+     if (!text) return;
+
+
+     chatLog.innerHTML += `<div class="you"><strong>You:</strong> ${text}</div>`;
+     chatLog.scrollTop = chatLog.scrollHeight;
+     input.value = '';
+
+
+     let res = await fetch('/api/message', {
+       method: 'POST',
+       headers: { 'Content-Type':'application/json' },
+       body: JSON.stringify({ text })
+     });
+     const { reply } = await res.json();
+     chatLog.innerHTML += `<div class="bos"><strong>BOS:</strong> ${reply}</div>`;
+     chatLog.scrollTop = chatLog.scrollHeight;
+
+
+     res = await fetch('/api/speak', {
+       method: 'POST',
+       headers: { 'Content-Type':'application/json' },
+       body: JSON.stringify({ text: reply })
+     });
+     const { url } = await res.json();
+     tts.src = url;
+     tts.play();
+   }
+
+
+   btn.addEventListener('click', sendMessage);
+   input.addEventListener('keydown', e => {
+     if (e.key === 'Enter') sendMessage();
+   });
+ </script>
 </body>
 </html>
+
+
+
+
