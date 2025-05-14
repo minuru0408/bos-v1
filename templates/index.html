@@ -15,6 +15,7 @@
       font-family: 'Orbitron', sans-serif;
       overflow: hidden;
     }
+
     /* BOOT SCREEN */
     #boot-screen {
       position: fixed; inset: 0;
@@ -31,18 +32,15 @@
     #boot-screen img {
       width: 60vw; max-width: 600px;
       height: auto;
-      display: block;
     }
     #boot-text {
       margin-top: 1rem;
       font-size: 1.5rem;
-      color: #fff;
     }
 
     /* MAIN APP (hidden until boot done) */
     #main-content {
-      position: relative;
-      display: none;              /* will switch to flex */
+      display: none;
       flex-direction: column;
       align-items: center;
       justify-content: space-between;
@@ -56,20 +54,18 @@
       opacity: 1;
     }
 
-    /* HEADER */
     h1 {
       font-size: 3rem;
-      color: #fff;
       text-shadow: 0 0 12px #fff;
     }
 
-    /* VISUALIZER (now above chat) */
+    /* VISUALIZER */
     #visualizer {
       width: 140px; height: 140px;
       border-radius: 50%;
       overflow: hidden;
-      transition: transform 0.2s ease-out;
       margin-bottom: 1rem;
+      transition: transform 0.2s ease-out;
     }
     #visualizer.speaking {
       animation: heartbeat 1s ease-in-out infinite;
@@ -122,6 +118,18 @@
       transition: background 0.2s ease;
     }
     #send-btn:hover { background: #ddd; }
+    #record-btn {
+      margin-left: .5rem;
+      padding: 0 .75em;
+      background: #222;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1em;
+      transition: background 0.2s ease;
+    }
+    #record-btn:hover { background: #333; }
   </style>
 </head>
 <body>
@@ -139,16 +147,17 @@
   <div id="main-content">
     <h1>B.O.S.</h1>
 
-    <!-- moved orb here -->
+    <!-- orb visualizer -->
     <img
       id="visualizer"
       src="{{ url_for('static', filename='orb.gif') }}"
-      alt="BOS speaking visualizer"
+      alt="Visualizing..."
     />
 
-    <!-- chat log + controls stay together -->
+    <!-- chat log -->
     <div id="chat-log"></div>
 
+    <!-- controls -->
     <div id="controls">
       <input
         id="user-input"
@@ -156,56 +165,60 @@
         placeholder="Type a message…"
       />
       <button id="send-btn">Send</button>
-      <!-- place these next to your Send button -->
-<!-- Only one button now! -->
-<button id="record-btn">🎤 Record</button>
-
+      <button id="record-btn">🎤 Record</button>
     </div>
 
     <audio id="tts-player" style="display:none;"></audio>
   </div>
 
   <script>
+    // Boot → fade out → show main
+    document.addEventListener('DOMContentLoaded', () => {
+      const boot = document.getElementById('boot-screen');
+      const main = document.getElementById('main-content');
+
+      setTimeout(() => {
+        boot.classList.add('fade-out');
+        setTimeout(() => {
+          boot.style.display = 'none';
+          main.classList.add('fade-in');
+        }, 1000);
+      }, 3000);
+    });
+
+    // Single toggle Record/Stop → Whisper → fill input
     const recordBtn = document.getElementById('record-btn');
-    const chatInput = document.getElementById('chat-input');
-  
+    const chatInput = document.getElementById('user-input');
+
     let mediaRecorder, audioChunks = [], isRecording = false;
-  
+
     recordBtn.addEventListener('click', async () => {
       if (!isRecording) {
-        // ▶️ Start recording
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaRecorder = new MediaRecorder(stream);
         audioChunks = [];
-  
+
         mediaRecorder.addEventListener('dataavailable', e => audioChunks.push(e.data));
-  
         mediaRecorder.addEventListener('stop', async () => {
           const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
           const form = new FormData();
           form.append('file', audioBlob, 'voice.webm');
-  
-          // Send to Flask Whisper endpoint
+
           const res = await fetch('/api/transcribe', { method: 'POST', body: form });
           const json = await res.json();
-  
           if (json.text) chatInput.value = json.text;
         });
-  
+
         mediaRecorder.start();
         recordBtn.textContent = '⏹ Stop';
         isRecording = true;
-  
+
       } else {
-        // ⏹ Stop recording
         mediaRecorder.stop();
         recordBtn.textContent = '🎤 Record';
         isRecording = false;
       }
     });
-  </script>
-  
-
   </script>
 </body>
 </html>
