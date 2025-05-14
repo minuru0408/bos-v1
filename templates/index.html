@@ -156,6 +156,9 @@
         placeholder="Type a message…"
       />
       <button id="send-btn">Send</button>
+      <!-- place these next to your Send button -->
+<button id="record-btn">🎤 Record</button>
+<button id="stop-btn" disabled>⏹ Stop</button>
     </div>
 
     <audio id="tts-player" style="display:none;"></audio>
@@ -219,6 +222,49 @@
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter') sendMessage();
     });
+    const recordBtn = document.getElementById('record-btn');
+const stopBtn   = document.getElementById('stop-btn');
+const chatInput = document.getElementById('chat-input');
+
+let mediaRecorder;
+let audioChunks = [];
+
+recordBtn.addEventListener('click', async () => {
+  // 1. Ask for mic permission & start recording
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  mediaRecorder = new MediaRecorder(stream);
+  audioChunks = [];
+
+  mediaRecorder.addEventListener('dataavailable', e => {
+    audioChunks.push(e.data);
+  });
+
+  mediaRecorder.addEventListener('stop', async () => {
+    // 2. Build a Blob & send to server
+    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+    const form   = new FormData();
+    form.append('file', audioBlob, 'voice.webm');
+
+    // 3. Call your Flask endpoint
+    const res = await fetch('/api/transcribe', { method: 'POST', body: form });
+    const json = await res.json();
+
+    // 4. Put the transcript into the chat input
+    if (json.text) chatInput.value = json.text;
+  });
+
+  mediaRecorder.start();
+  recordBtn.disabled = true;
+  stopBtn.disabled   = false;
+});
+
+stopBtn.addEventListener('click', () => {
+  // stops recording and fires the “stop” handler above
+  mediaRecorder.stop();
+  recordBtn.disabled = false;
+  stopBtn.disabled   = true;
+});
+
   </script>
 </body>
 </html>

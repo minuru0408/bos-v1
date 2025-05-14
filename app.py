@@ -6,7 +6,7 @@ import openai
 from flask import Flask, render_template, request, jsonify
 from speech import speak_text
 from search import intelligent_search
-
+from dotenv import load_dotenv
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -39,6 +39,28 @@ FORMAT RULES:
 
 Maintain this protocol rigorously.
 """
+
+@app.route('/api/transcribe', methods=['POST'])
+def transcribe():
+    # 1. Validate file upload
+    if 'file' not in request.files:
+        return jsonify({'error': 'No audio file provided'}), 400
+
+    audio_file = request.files['file']
+
+    # 2. Send to Whisper
+    try:
+        transcript = openai.Audio.transcribe(
+            model="whisper-1",
+            file=audio_file
+        )
+        text = transcript['text']
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    # 3. Return the text
+    return jsonify({'text': text})
+
 
 @app.route("/")
 def index():
