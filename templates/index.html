@@ -157,113 +157,54 @@
       />
       <button id="send-btn">Send</button>
       <!-- place these next to your Send button -->
+<!-- Only one button now! -->
 <button id="record-btn">🎤 Record</button>
-<button id="stop-btn" disabled>⏹ Stop</button>
+
     </div>
 
     <audio id="tts-player" style="display:none;"></audio>
   </div>
 
   <script>
-    // 1) handle boot->main fade
-    window.addEventListener('DOMContentLoaded', () => {
-      const boot = document.getElementById('boot-screen');
-      const main = document.getElementById('main-content');
-
-      setTimeout(() => {
-        boot.classList.add('fade-out');
-        boot.addEventListener('transitionend', () => {
-          boot.style.display = 'none';
-          main.classList.add('fade-in');
-        }, { once: true });
-      }, 3000);
-    });
-
-    // grab DOM nodes
-    const chatLog = document.getElementById('chat-log');
-    const input   = document.getElementById('user-input');
-    const btn     = document.getElementById('send-btn');
-    const orb     = document.getElementById('visualizer');
-    const tts     = document.getElementById('tts-player');
-
-    // animate orb when TTS plays
-    tts.addEventListener('play',  () => orb.classList.add('speaking'));
-    tts.addEventListener('ended', () => orb.classList.remove('speaking'));
-
-    // send & receive
-    async function sendMessage() {
-      const text = input.value.trim();
-      if (!text) return;
-
-      chatLog.innerHTML += `<div class="you"><strong>You:</strong> ${text}</div>`;
-      chatLog.scrollTop = chatLog.scrollHeight;
-      input.value = '';
-
-      let res = await fetch('/api/message', {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify({ text })
-      });
-      const { reply } = await res.json();
-      chatLog.innerHTML += `<div class="bos"><strong>BOS:</strong> ${reply}</div>`;
-      chatLog.scrollTop = chatLog.scrollHeight;
-
-      res = await fetch('/api/speak', {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify({ text: reply })
-      });
-      const { url } = await res.json();
-      tts.src = url;
-      tts.play();
-    }
-
-    btn.addEventListener('click', sendMessage);
-    input.addEventListener('keydown', e => {
-      if (e.key === 'Enter') sendMessage();
-    });
     const recordBtn = document.getElementById('record-btn');
-const stopBtn   = document.getElementById('stop-btn');
-const chatInput = document.getElementById('chat-input');
-
-let mediaRecorder;
-let audioChunks = [];
-
-recordBtn.addEventListener('click', async () => {
-  // 1. Ask for mic permission & start recording
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  mediaRecorder = new MediaRecorder(stream);
-  audioChunks = [];
-
-  mediaRecorder.addEventListener('dataavailable', e => {
-    audioChunks.push(e.data);
-  });
-
-  mediaRecorder.addEventListener('stop', async () => {
-    // 2. Build a Blob & send to server
-    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-    const form   = new FormData();
-    form.append('file', audioBlob, 'voice.webm');
-
-    // 3. Call your Flask endpoint
-    const res = await fetch('/api/transcribe', { method: 'POST', body: form });
-    const json = await res.json();
-
-    // 4. Put the transcript into the chat input
-    if (json.text) chatInput.value = json.text;
-  });
-
-  mediaRecorder.start();
-  recordBtn.disabled = true;
-  stopBtn.disabled   = false;
-});
-
-stopBtn.addEventListener('click', () => {
-  // stops recording and fires the “stop” handler above
-  mediaRecorder.stop();
-  recordBtn.disabled = false;
-  stopBtn.disabled   = true;
-});
+    const chatInput = document.getElementById('chat-input');
+  
+    let mediaRecorder, audioChunks = [], isRecording = false;
+  
+    recordBtn.addEventListener('click', async () => {
+      if (!isRecording) {
+        // ▶️ Start recording
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+  
+        mediaRecorder.addEventListener('dataavailable', e => audioChunks.push(e.data));
+  
+        mediaRecorder.addEventListener('stop', async () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          const form = new FormData();
+          form.append('file', audioBlob, 'voice.webm');
+  
+          // Send to Flask Whisper endpoint
+          const res = await fetch('/api/transcribe', { method: 'POST', body: form });
+          const json = await res.json();
+  
+          if (json.text) chatInput.value = json.text;
+        });
+  
+        mediaRecorder.start();
+        recordBtn.textContent = '⏹ Stop';
+        isRecording = true;
+  
+      } else {
+        // ⏹ Stop recording
+        mediaRecorder.stop();
+        recordBtn.textContent = '🎤 Record';
+        isRecording = false;
+      }
+    });
+  </script>
+  
 
   </script>
 </body>
