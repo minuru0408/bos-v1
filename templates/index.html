@@ -25,24 +25,19 @@
       opacity: 1;
       transition: opacity 1s ease-out;
     }
-    #boot-screen.fade-out {
-      opacity: 0;
-    }
+    #boot-screen.fade-out { opacity: 0; }
     #boot-screen img {
       width: 60vw; max-width: 600px;
-      height: auto;
-      display: block;
+      height: auto; display: block;
     }
     #boot-text {
-      margin-top: 1rem;
-      font-size: 1.5rem;
-      color: #fff;
+      margin-top: 1rem; font-size: 1.5rem; color: #fff;
     }
 
     /* MAIN APP (hidden until boot done) */
     #main-content {
       position: relative;
-      display: none;              /* will switch to flex */
+      display: none; /* will switch to flex */
       flex-direction: column;
       align-items: center;
       justify-content: space-between;
@@ -52,8 +47,7 @@
       transition: opacity 1s ease-in;
     }
     #main-content.fade-in {
-      display: flex;
-      opacity: 1;
+      display: flex; opacity: 1;
     }
 
     /* HEADER */
@@ -76,8 +70,8 @@
     }
     @keyframes heartbeat {
       0%,40%,100% { transform: scale(1); }
-      10%          { transform: scale(1.2); }
-      30%          { transform: scale(1.15); }
+      10% { transform: scale(1.2); }
+      30% { transform: scale(1.15); }
     }
 
     /* CHAT LOG */
@@ -98,8 +92,7 @@
     /* INPUT CONTROLS */
     #controls {
       width: 80%; max-width: 600px;
-      display: flex;
-      margin-bottom: 1rem;
+      display: flex; margin-bottom: 1rem;
     }
     #user-input {
       flex: 1;
@@ -171,7 +164,6 @@
         placeholder="Type a message…"
       />
       <button id="send-btn">Send</button>
-      <!-- NEW: single toggle Record/Stop button -->
       <button id="record-btn">🎤 Record</button>
     </div>
 
@@ -243,19 +235,44 @@
 
     recordBtn.addEventListener('click', async () => {
       if (!isRecording) {
+        // pick an audio-only mimeType
+        let mimeType = '';
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          mimeType = 'audio/webm;codecs=opus';
+        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+          mimeType = 'audio/mp4';
+        } else {
+          console.error('❌ No supported audio MIME type');
+          return;
+        }
+
+        console.log('▶️ Starting recording with', mimeType);
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder = new MediaRecorder(stream, { mimeType });
         audioChunks = [];
 
-        mediaRecorder.addEventListener('dataavailable', e => audioChunks.push(e.data));
-        mediaRecorder.addEventListener('stop', async () => {
-          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-          const form = new FormData();
-          form.append('file', audioBlob, 'voice.webm');
+        mediaRecorder.addEventListener('dataavailable', e => {
+          console.log('🗂️ Chunk:', e.data.type, e.data.size, 'bytes');
+          audioChunks.push(e.data);
+        });
 
-          const res = await fetch('/api/transcribe', { method: 'POST', body: form });
-          const json = await res.json();
-          if (json.text) input.value = json.text;
+        mediaRecorder.addEventListener('stop', async () => {
+          const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+          const blob = new Blob(audioChunks, { type: mimeType });
+          console.log(`⏹️ Stopped. Sending voice.${ext} (${blob.size} bytes)`);
+
+          const form = new FormData();
+          form.append('file', blob, `voice.${ext}`);
+
+          try {
+            const res = await fetch('/api/transcribe', { method: 'POST', body: form });
+            console.log('🖥️ Whisper status:', res.status);
+            const json = await res.json();
+            console.log('🔤 Whisper response:', json);
+            if (json.text) input.value = json.text;
+          } catch (err) {
+            console.error('❌ Fetch error:', err);
+          }
         });
 
         mediaRecorder.start();
@@ -263,6 +280,7 @@
         isRecording = true;
 
       } else {
+        console.log('⏹️ Stopping recording…');
         mediaRecorder.stop();
         recordBtn.textContent = '🎤 Record';
         isRecording = false;
