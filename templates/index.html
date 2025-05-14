@@ -8,14 +8,158 @@
     rel="stylesheet"
   />
   <style>
-    /* (keep your existing CSS exactly as-is) */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #000; color: #fff;
+      font-family: 'Orbitron', sans-serif;
+      overflow: hidden;
+    }
+    /* BOOT SCREEN */
+    #boot-screen {
+      position: fixed; inset: 0;
+      background: #000;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 1000;
+      opacity: 1;
+      transition: opacity 1s ease-out;
+    }
+    #boot-screen.fade-out { opacity: 0; }
+    #boot-screen img {
+      width: 60vw; max-width: 600px;
+      height: auto; display: block;
+    }
+    #boot-text {
+      margin-top: 1rem; font-size: 1.5rem; color: #fff;
+    }
+
+    /* MAIN APP (hidden until boot done) */
+    #main-content {
+      position: relative;
+      display: none; /* will switch to flex */
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      height: 100%; width: 100%;
+      padding: 2rem 0;
+      opacity: 0;
+      transition: opacity 1s ease-in;
+    }
+    #main-content.fade-in {
+      display: flex; opacity: 1;
+    }
+
+    /* HEADER */
+    h1 {
+      font-size: 3rem;
+      color: #fff;
+      text-shadow: 0 0 12px #fff;
+    }
+
+    /* VISUALIZER */
+    #visualizer {
+      width: 140px; height: 140px;
+      border-radius: 50%;
+      overflow: hidden;
+      transition: transform 0.2s ease-out;
+      margin-bottom: 1rem;
+    }
+    #visualizer.speaking {
+      animation: heartbeat 1s ease-in-out infinite;
+    }
+    @keyframes heartbeat {
+      0%,40%,100% { transform: scale(1); }
+      10% { transform: scale(1.2); }
+      30% { transform: scale(1.15); }
+    }
+
+    /* CHAT LOG */
+    #chat-log {
+      width: 80%; max-width: 600px;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 1rem;
+      flex: 1;
+      overflow-y: auto;
+      margin-bottom: 1rem;
+    }
+    #chat-log div { margin-bottom: .5rem; }
+    .you { color: #0af; }
+    .bos { color: #fff; }
+
+    /* INPUT CONTROLS */
+    #controls {
+      width: 80%; max-width: 600px;
+      display: flex; margin-bottom: 1rem;
+    }
+    #user-input {
+      flex: 1;
+      padding: .75em;
+      border: none;
+      border-radius: 6px 0 0 6px;
+      background: #111;
+      color: #fff;
+      outline: none;
+      font-size: 1em;
+    }
+    #send-btn {
+      padding: 0 .75em;
+      background: #fff;
+      color: #000;
+      border: none;
+      border-radius: 0 6px 6px 0;
+      cursor: pointer;
+      font-size: 1em;
+      transition: background 0.2s ease;
+    }
+    #send-btn:hover { background: #ddd; }
+
+    /* RECORD BUTTON */
+    #record-btn {
+      margin-left: .5rem;
+      padding: 0 .75em;
+      background: #222;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1em;
+      transition: background 0.2s ease;
+    }
+    #record-btn:hover { background: #333; }
   </style>
 </head>
 <body>
-  <!-- (boot screen + main content unchanged) -->
+
+  <!-- BOOT SCREEN -->
+  <div id="boot-screen">
+    <img src="{{ url_for('static', filename='boot.gif') }}" alt="B.O.S. Boot Sequence" />
+    <div id="boot-text">Initializing B.O.S...</div>
+  </div>
+
+  <!-- MAIN APP -->
+  <div id="main-content">
+    <h1>B.O.S.</h1>
+
+    <img id="visualizer"
+         src="{{ url_for('static', filename='orb.gif') }}"
+         alt="BOS speaking visualizer" />
+
+    <div id="chat-log"></div>
+
+    <div id="controls">
+      <input id="user-input" type="text" placeholder="Type a message…" />
+      <button id="send-btn">Send</button>
+      <button id="record-btn">🎤 Record</button>
+    </div>
+
+    <audio id="tts-player" style="display:none;"></audio>
+  </div>
 
   <script>
-    // 1) boot → main fade (unchanged)
+    // —— BOOT SCREEN → MAIN CONTENT FADE ——
     window.addEventListener('DOMContentLoaded', () => {
       const boot = document.getElementById('boot-screen');
       const main = document.getElementById('main-content');
@@ -28,50 +172,53 @@
       }, 3000);
     });
 
-    // grab DOM nodes (unchanged)
+    // —— CHAT LOG + TTS SETUP ——
     const chatLog = document.getElementById('chat-log');
     const input   = document.getElementById('user-input');
     const btn     = document.getElementById('send-btn');
     const orb     = document.getElementById('visualizer');
     const tts     = document.getElementById('tts-player');
 
-    // TTS orb animation (unchanged)
     tts.addEventListener('play',  () => orb.classList.add('speaking'));
     tts.addEventListener('ended', () => orb.classList.remove('speaking'));
 
-    // sendMessage (unchanged)
     async function sendMessage() {
       const text = input.value.trim();
       if (!text) return;
       chatLog.innerHTML += `<div class="you"><strong>You:</strong> ${text}</div>`;
       chatLog.scrollTop = chatLog.scrollHeight;
       input.value = '';
-      let res = await fetch('/api/message',{ method:'POST',
-        headers:{ 'Content-Type':'application/json' },
+      // ChatCompletion
+      let res = await fetch('/api/message', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
         body: JSON.stringify({ text })
       });
       const { reply } = await res.json();
       chatLog.innerHTML += `<div class="bos"><strong>BOS:</strong> ${reply}</div>`;
       chatLog.scrollTop = chatLog.scrollHeight;
-      res = await fetch('/api/speak',{ method:'POST',
-        headers:{ 'Content-Type':'application/json' },
+      // TTS
+      res = await fetch('/api/speak', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
         body: JSON.stringify({ text: reply })
       });
       const { url } = await res.json();
       tts.src = url; tts.play();
     }
+
     btn.addEventListener('click', sendMessage);
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter') sendMessage();
     });
 
-    // ←—— UPDATED RECORD/STOP LOGIC BELOW ——→
+    // —— RECORD / STOP TO WHISPER → INPUT —— 
     const recordBtn = document.getElementById('record-btn');
     let mediaRecorder, audioChunks = [], isRecording = false;
 
     recordBtn.addEventListener('click', async () => {
       if (!isRecording) {
-        // 1️⃣ Pick a supported audio-only mimeType
+        // pick an audio-only mimeType
         let mimeType = '';
         if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
           mimeType = 'audio/webm;codecs=opus';
@@ -86,7 +233,7 @@
           return;
         }
 
-        console.log('▶️ Starting recording with', mimeType);
+        console.log('▶️ Recording with', mimeType);
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaRecorder = new MediaRecorder(stream, { mimeType });
         audioChunks = [];
@@ -97,22 +244,22 @@
         });
 
         mediaRecorder.addEventListener('stop', async () => {
-          const ext = mimeType.includes('mp4') ? 'mp4'
-                    : mimeType.includes('ogg') ? 'ogg' : 'webm';
+          const ext  = mimeType.includes('mp4') ? 'mp4'
+                     : mimeType.includes('ogg') ? 'ogg' : 'webm';
           const blob = new Blob(audioChunks, { type: mimeType });
-          console.log(`⏹️ Stopped. Sending voice.${ext} (${blob.size} bytes, type=${blob.type})`);
+          console.log(`⏹️ Stopped. Sending voice.${ext} (${blob.size} bytes)`);
 
           const form = new FormData();
           form.append('file', blob, `voice.${ext}`);
 
           try {
-            const res = await fetch('/api/transcribe', { method:'POST', body: form });
-            console.log('🖥️ Whisper status:', res.status);
+            const res  = await fetch('/api/transcribe', { method:'POST', body:form });
+            console.log('🖥 Whisper status:', res.status);
             const json = await res.json();
-            console.log('🔤 Whisper response:', json);
+            console.log('🔤 Whisper says:', json);
             if (json.text) input.value = json.text;
-          } catch (err) {
-            console.error('❌ Fetch error:', err);
+          } catch(err) {
+            console.error('❌ Error calling Whisper:', err);
           }
         });
 
@@ -121,13 +268,12 @@
         isRecording = true;
 
       } else {
-        console.log('⏹️ Stopping recording…');
+        console.log('⏹️ Stop recording');
         mediaRecorder.stop();
         recordBtn.textContent = '🎤 Record';
         isRecording = false;
       }
     });
-    // ←—— END RECORD/STOP LOGIC ——→
   </script>
 </body>
 </html>
