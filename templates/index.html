@@ -159,7 +159,7 @@
   </div>
 
   <script>
-    // —— BOOT SCREEN → MAIN CONTENT FADE ——
+    // BOOT → MAIN
     window.addEventListener('DOMContentLoaded', () => {
       const boot = document.getElementById('boot-screen');
       const main = document.getElementById('main-content');
@@ -172,7 +172,7 @@
       }, 3000);
     });
 
-    // —— CHAT LOG + TTS SETUP ——
+    // CHAT & TTS
     const chatLog = document.getElementById('chat-log');
     const input   = document.getElementById('user-input');
     const btn     = document.getElementById('send-btn');
@@ -188,7 +188,6 @@
       chatLog.innerHTML += `<div class="you"><strong>You:</strong> ${text}</div>`;
       chatLog.scrollTop = chatLog.scrollHeight;
       input.value = '';
-      // ChatCompletion
       let res = await fetch('/api/message', {
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
@@ -197,7 +196,6 @@
       const { reply } = await res.json();
       chatLog.innerHTML += `<div class="bos"><strong>BOS:</strong> ${reply}</div>`;
       chatLog.scrollTop = chatLog.scrollHeight;
-      // TTS
       res = await fetch('/api/speak', {
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
@@ -212,63 +210,50 @@
       if (e.key === 'Enter') sendMessage();
     });
 
-    // —— RECORD / STOP TO WHISPER → INPUT —— 
+    // RECORD/STOP → WHISPER
     const recordBtn = document.getElementById('record-btn');
     let mediaRecorder, audioChunks = [], isRecording = false;
 
     recordBtn.addEventListener('click', async () => {
       if (!isRecording) {
-        // pick an audio-only mimeType
-        let mimeType = '';
-        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-          mimeType = 'audio/webm;codecs=opus';
-        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-          mimeType = 'audio/webm';
-        } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
-          mimeType = 'audio/ogg;codecs=opus';
-        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-          mimeType = 'audio/mp4';
-        } else {
-          console.error('❌ No suitable audio MIME type supported');
-          return;
-        }
-
+        // try MP3, else WebM/Opus
+        const useMp3 = MediaRecorder.isTypeSupported('audio/mpeg');
+        const mimeType = useMp3 ? 'audio/mpeg' : 'audio/webm;codecs=opus';
         console.log('▶️ Recording with', mimeType);
+
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaRecorder = new MediaRecorder(stream, { mimeType });
         audioChunks = [];
 
         mediaRecorder.addEventListener('dataavailable', e => {
-          console.log('🗂️ Chunk:', e.data.type, e.data.size, 'bytes');
+          console.log('🗂 Chunk:', e.data.type, e.data.size, 'bytes');
           audioChunks.push(e.data);
         });
 
         mediaRecorder.addEventListener('stop', async () => {
-          const ext  = mimeType.includes('mp4') ? 'mp4'
-                     : mimeType.includes('ogg') ? 'ogg' : 'webm';
+          const ext = useMp3 ? 'mp3' : 'webm';
           const blob = new Blob(audioChunks, { type: mimeType });
-          console.log(`⏹️ Stopped. Sending voice.${ext} (${blob.size} bytes)`);
+          console.log(`⏹ Stopped. Sending voice.${ext}`, blob);
 
           const form = new FormData();
           form.append('file', blob, `voice.${ext}`);
 
           try {
-            const res  = await fetch('/api/transcribe', { method:'POST', body:form });
+            const res  = await fetch('/api/transcribe', { method:'POST', body: form });
             console.log('🖥 Whisper status:', res.status);
             const json = await res.json();
             console.log('🔤 Whisper says:', json);
             if (json.text) input.value = json.text;
           } catch(err) {
-            console.error('❌ Error calling Whisper:', err);
+            console.error('❌ Whisper error:', err);
           }
         });
 
         mediaRecorder.start();
         recordBtn.textContent = '⏹ Stop';
         isRecording = true;
-
       } else {
-        console.log('⏹️ Stop recording');
+        console.log('⏹ Stopping');
         mediaRecorder.stop();
         recordBtn.textContent = '🎤 Record';
         isRecording = false;
