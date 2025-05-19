@@ -13,3 +13,9 @@ variables at startup so it can connect directly.
 Set the `GOOGLE_SHEETS_CREDS` environment variable to the path of your
 service account JSON credentials file. When configured, all user and assistant
 messages are appended to the `HECTOR_Memory_Log` Google Sheet for reference.
+
+## Gmail OAuth
+
+Set the `GOOGLE_OAUTH_CLIENT_SECRETS` environment variable to the path of your
+Google OAuth client secrets JSON. The application defaults to `credentials.json`
+in the repository root if this variable is not provided.
