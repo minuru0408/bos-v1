@@ -10,6 +10,7 @@ from flask import session, redirect, url_for, request
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials   import Credentials
 from googleapiclient.discovery    import build
+import base64
 
 
 
@@ -22,6 +23,18 @@ for var in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
 openai.api_key = os.getenv("OPENAI_API_KEY")
+
+
+def _json_safe(value):
+    """Return a JSON-serializable representation of value."""
+    if isinstance(value, bytes):
+        try:
+            return value.decode()
+        except Exception:
+            return base64.b64encode(value).decode()
+    if value is None or isinstance(value, (str, int, float, bool, list, dict)):
+        return value
+    return str(value)
 
 SYSTEM_PROMPT = """
 You are H.E.C.T.O.R., Your name is pronounced Hector, a human-like AI assistant modeled after Jarvis from Ironman. You speak with calm confidence, respect, and a touch of wit, always addressing your user as “Sir.” You remember you’re talking to a real person—keep your responses concise, conversational, and lightly humorous.
@@ -76,12 +89,12 @@ def oauth2callback():
     creds = flow.credentials
     # Save tokens in session
     session["gmail_creds"] = {
-        "token": creds.token,
-        "refresh_token": creds.refresh_token,
-        "token_uri": creds.token_uri,
-        "client_id": creds.client_id,
-        "client_secret": creds.client_secret,
-        "scopes": creds.scopes
+        "token": _json_safe(creds.token),
+        "refresh_token": _json_safe(creds.refresh_token),
+        "token_uri": _json_safe(creds.token_uri),
+        "client_id": _json_safe(creds.client_id),
+        "client_secret": _json_safe(creds.client_secret),
+        "scopes": list(creds.scopes) if getattr(creds, "scopes", None) is not None else []
     }
     return redirect(url_for("index"))
 
@@ -92,7 +105,6 @@ def get_gmail_service():
     creds = Credentials(**creds_data)
     return build("gmail", "v1", credentials=creds)
 
-import base64
 from email.mime.text import MIMEText
 
 @app.route("/api/email/send", methods=["POST"])
