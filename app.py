@@ -6,7 +6,7 @@ from flask import Flask, render_template, request, jsonify
 from speech import speak_text
 from search import intelligent_search
 from dotenv import load_dotenv
-from flask import session, redirect, url_for, request
+from flask import session, redirect, url_for
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials   import Credentials
 from googleapiclient.discovery    import build
