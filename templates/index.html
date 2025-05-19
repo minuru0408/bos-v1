@@ -129,6 +129,14 @@
       font-size: 1em;
       transition: background 0.2s ease;
     }
+    #conversation-btn {
+      padding: 0; /* icon only */
+    }
+    #conversation-btn img {
+      display: block;
+      width: 32px;
+      height: 32px;
+    }
     #record-btn:hover,
     #conversation-btn:hover { background: #333; }
   </style>
@@ -156,7 +164,9 @@
       <input id="user-input" type="text" placeholder="Type a message…" />
       <button id="send-btn">Send</button>
       <button id="record-btn">🎤 Record</button>
-      <button id="conversation-btn">Conversation</button>
+      <button id="conversation-btn">
+        <img id="conversation-icon" src="{{ url_for('static', filename='conversationoff.png') }}" alt="Conversation mode" />
+      </button>
     </div>
 
     <audio id="tts-player" style="display:none;"></audio>
@@ -189,6 +199,7 @@
     const btn     = document.getElementById('send-btn');
     const orb     = document.getElementById('visualizer');
     const tts     = document.getElementById('tts-player');
+    const convoIcon = document.getElementById('conversation-icon');
 
     // Track when H.E.C.T.O.R is speaking to ignore microphone input
     let ignoreRecognition = false;
@@ -398,7 +409,7 @@
     convoBtn.addEventListener('click', async () => {
       if (!isConversing) {
         isConversing = true;
-        convoBtn.textContent = 'Stop Conversation';
+        convoIcon.src = "{{ url_for('static', filename='conversationon.png') }}";
         if (recognition) {
           recognition.start();
         } else if (MR && navigator.mediaDevices?.getUserMedia) {
@@ -406,11 +417,11 @@
         } else {
           alert('Speech recognition not supported in this browser.');
           isConversing = false;
-          convoBtn.textContent = 'Conversation';
+          convoIcon.src = "{{ url_for('static', filename='conversationoff.png') }}";
         }
       } else {
         isConversing = false;
-        convoBtn.textContent = 'Conversation';
+        convoIcon.src = "{{ url_for('static', filename='conversationoff.png') }}";
         if (recognition) recognition.stop();
         else stopFallback();
       }
