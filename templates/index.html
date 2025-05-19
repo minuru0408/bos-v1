@@ -272,11 +272,7 @@
     // CONVERSATION MODE
     const convoBtn = document.getElementById('conversation-btn');
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
- codex/add-conversation-mode-with-speechrecognition-qbrorf
     const MR       = window.MediaRecorder || window.WebKitMediaRecorder;
-
- const MR       = window.MediaRecorder || window.WebKitMediaRecorder;
- main
 
     let recognition;
     let convoRecorder, convoStream, convoChunks = [], convoTimer;
@@ -331,17 +327,8 @@
       recognition.interimResults = false;
 
       recognition.addEventListener('result', e => {
-codex/add-conversation-mode-with-speechrecognition-qbrorf
-        const transcript = e.results[e.resultIndex][0].transcript;
-        const clean = transcript.trim();
-        if (!clean || clean === '.') return;
-        sendMessage(clean);
-
-        const transcript = Array.from(e.results)
-          .map(r => r[0].transcript)
-          .join('');
-        sendMessage(transcript);
- main
+        const result = e.results[e.resultIndex][0].transcript;
+        sendMessage(result);
       });
 
       recognition.addEventListener('end', () => {
@@ -349,14 +336,12 @@ codex/add-conversation-mode-with-speechrecognition-qbrorf
       });
     }
 
- codex/add-conversation-mode-with-speechrecognition-qbrorf
     if (!SpeechRec && !(MR && navigator.mediaDevices?.getUserMedia)) {
       convoBtn.disabled = true;
       convoBtn.title = 'Speech recognition not supported';
     }
 
 
-main
     convoBtn.addEventListener('click', async () => {
       if (!isConversing) {
         isConversing = true;
@@ -380,6 +365,3 @@ main
   </script>
 </body>
 </html>
-codex/add-conversation-mode-with-speechrecognition-qbrorf
-</html>
- main
