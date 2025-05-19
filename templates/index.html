@@ -139,6 +139,7 @@
   <div id="boot-screen">
     <img src="{{ url_for('static', filename='boot.gif') }}" alt="B.O.S. Boot Sequence" />
     <div id="boot-text">Initializing B.O.S...</div>
+    <audio id="boot-audio" src="{{ url_for('static', filename='boot.wav') }}" autoplay style="display:none;"></audio>
   </div>
 
   <!-- MAIN APP -->
@@ -165,13 +166,22 @@
     // BOOT → MAIN
     const boot = document.getElementById('boot-screen');
     const main = document.getElementById('main-content');
-    setTimeout(() => {
+    const bootAudio = document.getElementById('boot-audio');
+
+    function transitionToMain() {
+      if (boot.classList.contains('fade-out')) return;
       boot.classList.add('fade-out');
       boot.addEventListener('transitionend', () => {
         boot.style.display = 'none';
         main.classList.add('fade-in');
       }, { once: true });
-    }, 3000);
+    }
+
+    bootAudio.addEventListener('ended', transitionToMain);
+    bootAudio.play().catch(err => {
+      console.warn('Boot audio failed:', err);
+      transitionToMain();
+    });
 
     // CHAT & TTS
     const chatLog = document.getElementById('chat-log');
