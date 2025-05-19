@@ -9,7 +9,7 @@ def log_message(role, text):
     scope = ['https://spreadsheets.google.com/feeds','https://www.googleapis.com/auth/drive']
     creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
     client = gspread.authorize(creds)
-    sheet = client.open("BOS_Memory_Log").sheet1
+    sheet = client.open("HECTOR_Memory_Log").sheet1
     sheet.append_row([role, text, datetime.now().isoformat()])
 def load_memory(limit=20):
     """Fetch the last `limit` messages from the sheet as a list of {role,content}."""
@@ -17,7 +17,7 @@ def load_memory(limit=20):
     scope = ['https://spreadsheets.google.com/feeds','https://www.googleapis.com/auth/drive']
     creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
     client = gspread.authorize(creds)
-    sheet = client.open("BOS_Memory_Log").sheet1
+    sheet = client.open("HECTOR_Memory_Log").sheet1
 
     # Get all rows, keep only the last `limit`
     all_rows = sheet.get_all_values()  # each row = [role, text, timestamp]
