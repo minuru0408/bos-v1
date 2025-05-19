@@ -139,6 +139,7 @@
   <div id="boot-screen">
     <img src="{{ url_for('static', filename='boot.gif') }}" alt="B.O.S. Boot Sequence" />
     <div id="boot-text">Initializing B.O.S...</div>
+    <audio id="boot-audio" src="{{ url_for('static', filename='boot.wav') }}" autoplay style="display:none;"></audio>
   </div>
 
   <!-- MAIN APP -->
@@ -165,6 +166,8 @@
     // BOOT → MAIN
     const boot = document.getElementById('boot-screen');
     const main = document.getElementById('main-content');
+    const bootAudio = document.getElementById('boot-audio');
+    bootAudio.play().catch(err => console.warn('Boot audio failed:', err));
     setTimeout(() => {
       boot.classList.add('fade-out');
       boot.addEventListener('transitionend', () => {
