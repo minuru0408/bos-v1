@@ -167,7 +167,12 @@
     const boot = document.getElementById('boot-screen');
     const main = document.getElementById('main-content');
     const bootAudio = document.getElementById('boot-audio');
+codex/fix-boot-audio-playback-lid07m
     const transitionToMain = () => {
+
+    bootAudio.play().catch(err => console.warn('Boot audio failed:', err));
+    setTimeout(() => {
+ main
       boot.classList.add('fade-out');
       boot.addEventListener('transitionend', () => {
         boot.style.display = 'none';
