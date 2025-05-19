@@ -6,6 +6,11 @@ from flask import Flask, render_template, request, jsonify
 from speech import speak_text
 from search import intelligent_search
 from dotenv import load_dotenv
+from flask import session, redirect, url_for, request
+from google_auth_oauthlib.flow import Flow
+from google.oauth2.credentials   import Credentials
+from googleapiclient.discovery    import build
+
 
 
 load_dotenv()  # make sure your .env is loaded
@@ -42,6 +47,76 @@ FORMAT RULES:
 
 Maintain this protocol rigorously.
 """
+# ——— Gmail OAuth Setup ———
+SCOPES = [
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/gmail.readonly"
+]
+
+@app.route("/oauth2login")
+def oauth2login():
+    flow = Flow.from_client_secrets_file(
+        "credentials.json",
+        scopes=SCOPES,
+        redirect_uri=url_for("oauth2callback", _external=True)
+    )
+    auth_url, _ = flow.authorization_url(
+        access_type="offline", include_granted_scopes="true"
+    )
+    return redirect(auth_url)
+
+@app.route("/oauth2callback")
+def oauth2callback():
+    flow = Flow.from_client_secrets_file(
+        "credentials.json",
+        scopes=SCOPES,
+        redirect_uri=url_for("oauth2callback", _external=True)
+    )
+    flow.fetch_token(authorization_response=request.url)
+    creds = flow.credentials
+    # Save tokens in session
+    session["gmail_creds"] = {
+        "token": creds.token,
+        "refresh_token": creds.refresh_token,
+        "token_uri": creds.token_uri,
+        "client_id": creds.client_id,
+        "client_secret": creds.client_secret,
+        "scopes": creds.scopes
+    }
+    return redirect(url_for("index"))
+
+def get_gmail_service():
+    creds_data = session.get("gmail_creds")
+    if not creds_data:
+        return None
+    creds = Credentials(**creds_data)
+    return build("gmail", "v1", credentials=creds)
+
+import base64
+from email.mime.text import MIMEText
+
+@app.route("/api/email/send", methods=["POST"])
+def send_email():
+    data = request.get_json() or {}
+    to      = data.get("to")
+    subject = data.get("subject", "")
+    body    = data.get("body", "")
+
+    service = get_gmail_service()
+    if not service:
+        return jsonify({"error": "Not authenticated with Gmail"}), 401
+
+    # Build RFC2822 email
+    message = MIMEText(body)
+    message["to"]      = to
+    message["subject"] = subject
+    raw   = base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+    sent = service.users().messages().send(
+        userId="me", body={"raw": raw}
+    ).execute()
+
+    return jsonify({"messageId": sent.get("id")})
 
 
 @app.route('/api/transcribe', methods=['POST'])
