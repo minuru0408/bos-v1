@@ -60,18 +60,24 @@ def oauth2login():
         scopes=SCOPES,
         redirect_uri=url_for("oauth2callback", _external=True)
     )
-    auth_url, _ = flow.authorization_url(
+    auth_url, state = flow.authorization_url(
         access_type="offline", include_granted_scopes="true"
     )
+    # Save state in session for later validation
+    session["oauth_state"] = state
     return redirect(auth_url)
 
 @app.route("/oauth2callback")
 def oauth2callback():
+    stored_state = session.get("oauth_state")
     flow = Flow.from_client_secrets_file(
         "credentials.json",
         scopes=SCOPES,
+        state=stored_state,
         redirect_uri=url_for("oauth2callback", _external=True)
     )
+    if request.args.get("state") != stored_state:
+        return "State mismatch", 400
     flow.fetch_token(authorization_response=request.url)
     creds = flow.credentials
     # Save tokens in session
