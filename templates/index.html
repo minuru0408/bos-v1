@@ -116,8 +116,9 @@
     }
     #send-btn:hover { background: #ddd; }
 
-    /* RECORD BUTTON */
-    #record-btn {
+    /* RECORD & CONVERSATION BUTTONS */
+    #record-btn,
+    #conversation-btn {
       margin-left: .5rem;
       padding: 0 .75em;
       background: #222;
@@ -128,7 +129,8 @@
       font-size: 1em;
       transition: background 0.2s ease;
     }
-    #record-btn:hover { background: #333; }
+    #record-btn:hover,
+    #conversation-btn:hover { background: #333; }
   </style>
 </head>
 <body>
@@ -153,6 +155,7 @@
       <input id="user-input" type="text" placeholder="Type a message…" />
       <button id="send-btn">Send</button>
       <button id="record-btn">🎤 Record</button>
+      <button id="conversation-btn">Conversation</button>
     </div>
 
     <audio id="tts-player" style="display:none;"></audio>
@@ -182,8 +185,8 @@
     tts.addEventListener('play',  () => orb.classList.add('speaking'));
     tts.addEventListener('ended', () => orb.classList.remove('speaking'));
 
-    async function sendMessage() {
-      const text = input.value.trim();
+    async function sendMessage(txt) {
+      let text = typeof txt === 'string' ? txt.trim() : input.value.trim();
       if (!text) return;
       chatLog.innerHTML += `<div class="you"><strong>You:</strong> ${text}</div>`;
       chatLog.scrollTop = chatLog.scrollHeight;
@@ -265,6 +268,43 @@
         isRecording = false;
       }
     });
+
+    // CONVERSATION MODE
+    const convoBtn = document.getElementById('conversation-btn');
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition, isConversing = false;
+
+    if (!SpeechRec) {
+      convoBtn.disabled = true;
+      convoBtn.title = 'Speech recognition not supported';
+    } else {
+      recognition = new SpeechRec();
+      recognition.continuous = true;
+      recognition.interimResults = false;
+
+      recognition.addEventListener('result', e => {
+        const transcript = Array.from(e.results)
+          .map(r => r[0].transcript)
+          .join('');
+        sendMessage(transcript);
+      });
+
+      recognition.addEventListener('end', () => {
+        if (isConversing) recognition.start();
+      });
+
+      convoBtn.addEventListener('click', () => {
+        if (!isConversing) {
+          recognition.start();
+          convoBtn.textContent = 'Stop Conversation';
+          isConversing = true;
+        } else {
+          recognition.stop();
+          convoBtn.textContent = 'Conversation';
+          isConversing = false;
+        }
+      });
+    }
   </script>
 </body>
 </html>
