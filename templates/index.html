@@ -129,14 +129,6 @@
       font-size: 1em;
       transition: background 0.2s ease;
     }
-    #conversation-btn {
-      padding: 0; /* icon only */
-    }
-    #conversation-btn img {
-      display: block;
-      width: 32px;
-      height: 32px;
-    }
     #record-btn:hover,
     #conversation-btn:hover { background: #333; }
   </style>
@@ -164,10 +156,8 @@
       <input id="user-input" type="text" placeholder="Type a message…" />
       <button id="send-btn">Send</button>
       <button id="record-btn">🎤 Record</button>
-      <button id="conversation-btn">
-        <img id="conversation-icon" src="{{ url_for('static', filename='conversationoff.png') }}" alt="Conversation mode" />
-      </button>
-    </div>
+        <button id="conversation-btn">💬 Converse</button>
+      </div>
 
     <audio id="tts-player" style="display:none;"></audio>
   </div>
@@ -196,10 +186,9 @@
     // CHAT & TTS
     const chatLog = document.getElementById('chat-log');
     const input   = document.getElementById('user-input');
-    const btn     = document.getElementById('send-btn');
-    const orb     = document.getElementById('visualizer');
-    const tts     = document.getElementById('tts-player');
-    const convoIcon = document.getElementById('conversation-icon');
+    const btn  = document.getElementById('send-btn');
+    const orb  = document.getElementById('visualizer');
+    const tts  = document.getElementById('tts-player');
 
     // Track when H.E.C.T.O.R is speaking to ignore microphone input
     let ignoreRecognition = false;
@@ -407,25 +396,25 @@
 
 
     convoBtn.addEventListener('click', async () => {
-      if (!isConversing) {
-        isConversing = true;
-        convoIcon.src = "{{ url_for('static', filename='conversationon.png') }}";
-        if (recognition) {
-          recognition.start();
-        } else if (MR && navigator.mediaDevices?.getUserMedia) {
-          await startFallback();
+        if (!isConversing) {
+          isConversing = true;
+          convoBtn.textContent = '⏹ Stop Convo';
+          if (recognition) {
+            recognition.start();
+          } else if (MR && navigator.mediaDevices?.getUserMedia) {
+            await startFallback();
+          } else {
+            alert('Speech recognition not supported in this browser.');
+            isConversing = false;
+            convoBtn.textContent = '💬 Converse';
+          }
         } else {
-          alert('Speech recognition not supported in this browser.');
           isConversing = false;
-          convoIcon.src = "{{ url_for('static', filename='conversationoff.png') }}";
+          convoBtn.textContent = '💬 Converse';
+          if (recognition) recognition.stop();
+          else stopFallback();
         }
-      } else {
-        isConversing = false;
-        convoIcon.src = "{{ url_for('static', filename='conversationoff.png') }}";
-        if (recognition) recognition.stop();
-        else stopFallback();
-      }
-    });
+      });
   </script>
 </body>
 </html>
