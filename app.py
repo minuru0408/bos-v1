@@ -12,6 +12,7 @@ from google.oauth2.credentials   import Credentials
 from googleapiclient.discovery    import build
 from google.auth.transport.requests import Request
 import base64
+from memory import log_message
 
 
 
@@ -235,6 +236,7 @@ def index():
 def message():
     data      = request.get_json() or {}
     user_text = data.get("text", "").strip()
+    log_message("user", user_text)
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -268,6 +270,8 @@ def message():
             reply = f"Search error: {e}"
     else:
         reply = raw
+
+    log_message("hector", reply)
 
     return jsonify({"reply": reply})
 
