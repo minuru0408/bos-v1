@@ -68,10 +68,12 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly"
 ]
 
+CLIENT_SECRETS_FILE = os.getenv("GOOGLE_OAUTH_CLIENT_SECRETS", "credentials.json")
+
 @app.route("/oauth2login")
 def oauth2login():
     flow = Flow.from_client_secrets_file(
-        "credentials.json",
+        CLIENT_SECRETS_FILE,
         scopes=SCOPES,
         redirect_uri=url_for("oauth2callback", _external=True)
     )
@@ -86,7 +88,7 @@ def oauth2login():
 def oauth2callback():
     stored_state = session.get("oauth_state")
     flow = Flow.from_client_secrets_file(
-        "credentials.json",
+        CLIENT_SECRETS_FILE,
         scopes=SCOPES,
         state=stored_state,
         redirect_uri=url_for("oauth2callback", _external=True)
