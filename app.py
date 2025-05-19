@@ -10,6 +10,7 @@ from flask import session, redirect, url_for
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials   import Credentials
 from googleapiclient.discovery    import build
+from google.auth.transport.requests import Request
 import base64
 
 
@@ -109,6 +110,13 @@ def get_gmail_service():
     if not creds_data:
         return None
     creds = Credentials(**creds_data)
+    # Auto-refresh access token if needed and update the session
+    if creds.expired and creds.refresh_token:
+        try:
+            creds.refresh(Request())
+            session["gmail_creds"]["token"] = _json_safe(creds.token)
+        except Exception:
+            return None
     return build("gmail", "v1", credentials=creds)
 
 from email.mime.text import MIMEText
@@ -145,6 +153,37 @@ def send_email():
     ).execute()
 
     return jsonify({"messageId": sent.get("id")})
+
+
+@app.route("/api/email/read", methods=["GET"])
+def read_email():
+    service = get_gmail_service()
+    if not service:
+        return jsonify({"error": "Not authenticated with Gmail"}), 401
+    try:
+        response = service.users().messages().list(
+            userId="me", labelIds=["INBOX"], maxResults=10
+        ).execute()
+        ids = [msg["id"] for msg in response.get("messages", [])]
+        results = []
+        for msg_id in ids:
+            msg = service.users().messages().get(
+                userId="me",
+                id=msg_id,
+                format="metadata",
+                metadataHeaders=["Subject", "From", "Date"],
+            ).execute()
+            headers = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
+            results.append({
+                "id": msg_id,
+                "subject": headers.get("Subject", ""),
+                "from": headers.get("From", ""),
+                "date": headers.get("Date", ""),
+                "snippet": msg.get("snippet", ""),
+            })
+        return jsonify({"messages": results})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/transcribe', methods=['POST'])
