@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>B.O.S. v1</title>
+  <title>H.E.C.T.O.R v1</title>
   <link
     href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"
     rel="stylesheet"
@@ -87,7 +87,7 @@
     }
     #chat-log div { margin-bottom: .5rem; }
     .you { color: #0af; }
-    .bos { color: #fff; }
+    .hector { color: #fff; }
 
     /* INPUT CONTROLS */
     #controls {
@@ -137,18 +137,18 @@
 
   <!-- BOOT SCREEN -->
   <div id="boot-screen">
-    <img src="{{ url_for('static', filename='boot.gif') }}" alt="B.O.S. Boot Sequence" />
-    <div id="boot-text">Initializing B.O.S...</div>
+    <img src="{{ url_for('static', filename='boot.gif') }}" alt="H.E.C.T.O.R Boot Sequence" />
+    <div id="boot-text">Initializing H.E.C.T.O.R...</div>
     <audio id="boot-audio" src="{{ url_for('static', filename='boot.wav') }}" autoplay style="display:none;"></audio>
   </div>
 
   <!-- MAIN APP -->
   <div id="main-content">
-    <h1>B.O.S.</h1>
+    <h1>H.E.C.T.O.R</h1>
 
     <img id="visualizer"
          src="{{ url_for('static', filename='orb.gif') }}"
-         alt="BOS speaking visualizer" />
+         alt="H.E.C.T.O.R speaking visualizer" />
 
     <div id="chat-log"></div>
 
@@ -190,7 +190,7 @@
     const orb     = document.getElementById('visualizer');
     const tts     = document.getElementById('tts-player');
 
-    // Track when BOS is speaking to ignore microphone input
+    // Track when H.E.C.T.O.R is speaking to ignore microphone input
     let ignoreRecognition = false;
     let discardChunk      = false;
 
@@ -240,7 +240,7 @@
         body: JSON.stringify({ text })
       });
       const { reply } = await res.json();
-      chatLog.innerHTML += `<div class="bos"><strong>BOS:</strong> ${reply}</div>`;
+      chatLog.innerHTML += `<div class="hector"><strong>H.E.C.T.O.R:</strong> ${reply}</div>`;
       chatLog.scrollTop = chatLog.scrollHeight;
       res = await fetch('/api/speak', {
         method: 'POST',

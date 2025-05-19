@@ -1,5 +1,5 @@
-# bos-v1
-Bos v1 – AI butler web app.
+# hector-v1
+H.E.C.T.O.R v1 – AI butler web app.
 
 ## Networking
 
