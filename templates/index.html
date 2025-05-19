@@ -272,12 +272,56 @@
     // CONVERSATION MODE
     const convoBtn = document.getElementById('conversation-btn');
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-    let recognition, isConversing = false;
+ const MR       = window.MediaRecorder || window.WebKitMediaRecorder;
 
-    if (!SpeechRec) {
-      convoBtn.disabled = true;
-      convoBtn.title = 'Speech recognition not supported';
-    } else {
+    let recognition;
+    let convoRecorder, convoStream, convoChunks = [], convoTimer;
+    let isConversing = false;
+
+    const CHUNK_MS = 5000; // 5 sec per segment
+
+    function startChunk() {
+      convoRecorder.start();
+      convoTimer = setTimeout(() => {
+        if (convoRecorder.state === 'recording') convoRecorder.stop();
+      }, CHUNK_MS);
+    }
+
+    async function startFallback() {
+      const useMp3  = MR && MR.isTypeSupported && MR.isTypeSupported('audio/mpeg');
+      const mime    = useMp3 ? 'audio/mpeg' : 'audio/webm;codecs=opus';
+      convoStream   = await navigator.mediaDevices.getUserMedia({ audio: true });
+      convoRecorder = new MR(convoStream, { mimeType: mime });
+      convoChunks   = [];
+
+      convoRecorder.addEventListener('dataavailable', e => convoChunks.push(e.data));
+      convoRecorder.addEventListener('stop', async () => {
+        const blob = new Blob(convoChunks, { type: mime });
+        const ext  = useMp3 ? 'mp3' : 'webm';
+        const file = new File([blob], `convo.${ext}`, { type: blob.type });
+        const form = new FormData();
+        form.append('file', file);
+        try {
+          const res  = await fetch('/api/transcribe', { method: 'POST', body: form });
+          const json = await res.json();
+          if (json.text) sendMessage(json.text);
+        } catch (err) {
+          console.error('❌ Convo transcribe error:', err);
+        }
+        convoChunks = [];
+        if (isConversing) startChunk();
+      });
+
+      startChunk();
+    }
+
+    function stopFallback() {
+      clearTimeout(convoTimer);
+      if (convoRecorder && convoRecorder.state === 'recording') convoRecorder.stop();
+      if (convoStream) convoStream.getTracks().forEach(t => t.stop());
+    }
+
+    if (SpeechRec) {
       recognition = new SpeechRec();
       recognition.continuous = true;
       recognition.interimResults = false;
@@ -292,19 +336,29 @@
       recognition.addEventListener('end', () => {
         if (isConversing) recognition.start();
       });
-
-      convoBtn.addEventListener('click', () => {
-        if (!isConversing) {
-          recognition.start();
-          convoBtn.textContent = 'Stop Conversation';
-          isConversing = true;
-        } else {
-          recognition.stop();
-          convoBtn.textContent = 'Conversation';
-          isConversing = false;
-        }
-      });
     }
+
+    convoBtn.addEventListener('click', async () => {
+      if (!isConversing) {
+        isConversing = true;
+        convoBtn.textContent = 'Stop Conversation';
+        if (recognition) {
+          recognition.start();
+        } else if (MR && navigator.mediaDevices?.getUserMedia) {
+          await startFallback();
+        } else {
+          alert('Speech recognition not supported in this browser.');
+          isConversing = false;
+          convoBtn.textContent = 'Conversation';
+        }
+      } else {
+        isConversing = false;
+        convoBtn.textContent = 'Conversation';
+        if (recognition) recognition.stop();
+        else stopFallback();
+      }
+    });
   </script>
 </body>
+</html>
 </html>
