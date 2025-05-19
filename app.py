@@ -7,7 +7,12 @@ from speech import speak_text
 from search import intelligent_search
 from dotenv import load_dotenv
 
+
 load_dotenv()  # make sure your .env is loaded
+
+# Disable proxy environment variables that may block outbound HTTP requests
+for var in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
+    os.environ.pop(var, None)
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
