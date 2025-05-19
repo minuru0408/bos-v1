@@ -1,12 +1,14 @@
 
 import os
 import json
-import re
 import openai
 from flask import Flask, render_template, request, jsonify
 from speech import speak_text
 from search import intelligent_search
 from dotenv import load_dotenv
+
+load_dotenv()  # make sure your .env is loaded
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -40,6 +42,7 @@ FORMAT RULES:
 Maintain this protocol rigorously.
 """
 
+
 @app.route('/api/transcribe', methods=['POST'])
 def transcribe():
     # 1. Validate file upload
@@ -47,6 +50,13 @@ def transcribe():
         return jsonify({'error': 'No audio file provided'}), 400
 
     audio_file = request.files['file']
+
+    # —— NEW: fix for Opera GX sending video/webm —— 
+    # Whisper only accepts audio/webm, not video/webm.
+    # If the browser tagged it as video/, convert to audio/.
+    if audio_file.mimetype.startswith('video/'):
+        audio_file.mimetype     = audio_file.mimetype.replace('video/', 'audio/', 1)
+        audio_file.content_type = audio_file.content_type.replace('video/', 'audio/', 1)
 
     # 2. Send to Whisper
     try:
@@ -56,6 +66,7 @@ def transcribe():
         )
         text = transcript['text']
     except Exception as e:
+        # Return exactly what Whisper reports
         return jsonify({'error': str(e)}), 500
 
     # 3. Return the text
@@ -66,25 +77,23 @@ def transcribe():
 def index():
     return render_template("index.html")
 
+
 @app.route("/api/message", methods=["POST"])
 def message():
     data      = request.get_json() or {}
     user_text = data.get("text", "").strip()
 
-    # Build the full messages array, starting with your system prompt
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user",   "content": user_text}
     ]
-
-    # Ask the model
     resp = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=messages
     )
     raw = resp.choices[0].message.content.strip()
 
-    # Try to parse a search JSON; if present, do the search
+    # Try parse {"search":"..."} JSON
     try:
         obj = json.loads(raw)
         query = obj.get("search")
@@ -92,7 +101,7 @@ def message():
         query = None
 
     if query:
-        # perform your intelligent_search() as before…
+        # perform intelligent_search
         try:
             items = intelligent_search(query)
             if not items:
@@ -100,27 +109,26 @@ def message():
             else:
                 lines = [f"Top search results for “{query}”:"]
                 for i, item in enumerate(items, start=1):
-                    lines.append(f"{i}. {item.get('title')}\n   {item.get('snippet')}\n   {item.get('link')}")
+                    lines.append(f"{i}. {item['title']}\n   {item['snippet']}\n   {item['link']}")
                 reply = "\n".join(lines)
         except Exception as e:
             reply = f"Search error: {e}"
     else:
-        # Not a search command — raw is your natural-language answer
         reply = raw
 
     return jsonify({"reply": reply})
+
 
 @app.route("/api/speak", methods=["POST"])
 def speak():
     data = request.get_json() or {}
     text = data.get("text", "").strip()
-    # speak_text should return a URL or raise
     try:
         url = speak_text(text)
     except Exception as e:
-        # If TTS fails, just return an empty URL (or handle as you like)
         return jsonify({"url": "", "error": str(e)})
     return jsonify({"url": url})
+
 
 @app.route("/api/search", methods=["POST"])
 def web_search():
@@ -140,6 +148,7 @@ def web_search():
         return jsonify({"results": results})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5001))
