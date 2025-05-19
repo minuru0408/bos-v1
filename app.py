@@ -110,9 +110,19 @@ from email.mime.text import MIMEText
 @app.route("/api/email/send", methods=["POST"])
 def send_email():
     data = request.get_json() or {}
-    to      = data.get("to")
-    subject = data.get("subject", "")
-    body    = data.get("body", "")
+    to      = (data.get("to") or "").strip()
+    subject = (data.get("subject") or "").strip()
+    body    = (data.get("body") or "").strip()
+
+    missing = []
+    if not to:
+        missing.append("to")
+    if not subject:
+        missing.append("subject")
+    if not body:
+        missing.append("body")
+    if missing:
+        return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
 
     service = get_gmail_service()
     if not service:
