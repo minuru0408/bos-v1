@@ -163,17 +163,15 @@
 
   <script>
     // BOOT → MAIN
-    window.addEventListener('DOMContentLoaded', () => {
-      const boot = document.getElementById('boot-screen');
-      const main = document.getElementById('main-content');
-      setTimeout(() => {
-        boot.classList.add('fade-out');
-        boot.addEventListener('transitionend', () => {
-          boot.style.display = 'none';
-          main.classList.add('fade-in');
-        }, { once: true });
-      }, 3000);
-    });
+    const boot = document.getElementById('boot-screen');
+    const main = document.getElementById('main-content');
+    setTimeout(() => {
+      boot.classList.add('fade-out');
+      boot.addEventListener('transitionend', () => {
+        boot.style.display = 'none';
+        main.classList.add('fade-in');
+      }, { once: true });
+    }, 3000);
 
     // CHAT & TTS
     const chatLog = document.getElementById('chat-log');
