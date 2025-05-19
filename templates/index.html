@@ -186,6 +186,12 @@
     async function sendMessage(txt) {
       let text = typeof txt === 'string' ? txt.trim() : input.value.trim();
       if (!text) return;
+      const cleaned = text.replace(/\s+/g, "");
+      if (/^\.*$/.test(cleaned)) {
+        console.log('Ignoring dot-only input');
+        input.value = '';
+        return;
+      }
       chatLog.innerHTML += `<div class="you"><strong>You:</strong> ${text}</div>`;
       chatLog.scrollTop = chatLog.scrollHeight;
       input.value = '';
