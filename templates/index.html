@@ -116,8 +116,9 @@
     }
     #send-btn:hover { background: #ddd; }
 
-    /* RECORD BUTTON */
-    #record-btn {
+    /* RECORD & CONVERSATION BUTTONS */
+    #record-btn,
+    #conversation-btn {
       margin-left: .5rem;
       padding: 0 .75em;
       background: #222;
@@ -128,7 +129,8 @@
       font-size: 1em;
       transition: background 0.2s ease;
     }
-    #record-btn:hover { background: #333; }
+    #record-btn:hover,
+    #conversation-btn:hover { background: #333; }
   </style>
 </head>
 <body>
@@ -153,6 +155,7 @@
       <input id="user-input" type="text" placeholder="Type a message…" />
       <button id="send-btn">Send</button>
       <button id="record-btn">🎤 Record</button>
+      <button id="conversation-btn">Conversation</button>
     </div>
 
     <audio id="tts-player" style="display:none;"></audio>
@@ -182,8 +185,8 @@
     tts.addEventListener('play',  () => orb.classList.add('speaking'));
     tts.addEventListener('ended', () => orb.classList.remove('speaking'));
 
-    async function sendMessage() {
-      const text = input.value.trim();
+    async function sendMessage(txt) {
+      let text = typeof txt === 'string' ? txt.trim() : input.value.trim();
       if (!text) return;
       chatLog.innerHTML += `<div class="you"><strong>You:</strong> ${text}</div>`;
       chatLog.scrollTop = chatLog.scrollHeight;
@@ -263,6 +266,101 @@
         mediaRecorder.stop();
         recordBtn.textContent = '🎤 Record';
         isRecording = false;
+      }
+    });
+
+    // CONVERSATION MODE
+    const convoBtn = document.getElementById('conversation-btn');
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const MR       = window.MediaRecorder || window.WebKitMediaRecorder;
+
+    let recognition;
+    let convoRecorder, convoStream, convoChunks = [], convoTimer;
+    let isConversing = false;
+
+    const CHUNK_MS = 5000; // 5 sec per segment
+
+    function startChunk() {
+      convoRecorder.start();
+      convoTimer = setTimeout(() => {
+        if (convoRecorder.state === 'recording') convoRecorder.stop();
+      }, CHUNK_MS);
+    }
+
+    async function startFallback() {
+      const useMp3  = MR && MR.isTypeSupported && MR.isTypeSupported('audio/mpeg');
+      const mime    = useMp3 ? 'audio/mpeg' : 'audio/webm;codecs=opus';
+      convoStream   = await navigator.mediaDevices.getUserMedia({ audio: true });
+      convoRecorder = new MR(convoStream, { mimeType: mime });
+      convoChunks   = [];
+
+      convoRecorder.addEventListener('dataavailable', e => convoChunks.push(e.data));
+      convoRecorder.addEventListener('stop', async () => {
+        const blob = new Blob(convoChunks, { type: mime });
+        const ext  = useMp3 ? 'mp3' : 'webm';
+        const file = new File([blob], `convo.${ext}`, { type: blob.type });
+        const form = new FormData();
+        form.append('file', file);
+        try {
+          const res  = await fetch('/api/transcribe', { method: 'POST', body: form });
+          const json = await res.json();
+          if (json.text) sendMessage(json.text);
+        } catch (err) {
+          console.error('❌ Convo transcribe error:', err);
+        }
+        convoChunks = [];
+        if (isConversing) startChunk();
+      });
+
+      startChunk();
+    }
+
+    function stopFallback() {
+      clearTimeout(convoTimer);
+      if (convoRecorder && convoRecorder.state === 'recording') convoRecorder.stop();
+      if (convoStream) convoStream.getTracks().forEach(t => t.stop());
+    }
+
+    if (SpeechRec) {
+      recognition = new SpeechRec();
+      recognition.continuous = true;
+      recognition.interimResults = false;
+
+      recognition.addEventListener('result', e => {
+        const transcript = e.results[e.resultIndex][0].transcript;
+        const clean = transcript.trim();
+        if (!clean || clean === '.') return;
+        sendMessage(clean);
+      });
+
+      recognition.addEventListener('end', () => {
+        if (isConversing) recognition.start();
+      });
+    }
+
+    if (!SpeechRec && !(MR && navigator.mediaDevices?.getUserMedia)) {
+      convoBtn.disabled = true;
+      convoBtn.title = 'Speech recognition not supported';
+    }
+
+    convoBtn.addEventListener('click', async () => {
+      if (!isConversing) {
+        isConversing = true;
+        convoBtn.textContent = 'Stop Conversation';
+        if (recognition) {
+          recognition.start();
+        } else if (MR && navigator.mediaDevices?.getUserMedia) {
+          await startFallback();
+        } else {
+          alert('Speech recognition not supported in this browser.');
+          isConversing = false;
+          convoBtn.textContent = 'Conversation';
+        }
+      } else {
+        isConversing = false;
+        convoBtn.textContent = 'Conversation';
+        if (recognition) recognition.stop();
+        else stopFallback();
       }
     });
   </script>
