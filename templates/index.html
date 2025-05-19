@@ -180,8 +180,27 @@
     const orb     = document.getElementById('visualizer');
     const tts     = document.getElementById('tts-player');
 
-    tts.addEventListener('play',  () => orb.classList.add('speaking'));
-    tts.addEventListener('ended', () => orb.classList.remove('speaking'));
+    tts.addEventListener('play', () => {
+      orb.classList.add('speaking');
+      if (isConversing) {
+        if (recognition) {
+          recognition.stop();
+        } else if (convoRecorder && convoRecorder.state === 'recording') {
+          convoRecorder.stop();
+        }
+      }
+    });
+
+    tts.addEventListener('ended', () => {
+      orb.classList.remove('speaking');
+      if (isConversing) {
+        if (recognition) {
+          recognition.start();
+        } else if (convoRecorder && convoRecorder.state !== 'recording') {
+          startChunk();
+        }
+      }
+    });
 
     async function sendMessage(txt) {
       let text = typeof txt === 'string' ? txt.trim() : input.value.trim();
@@ -228,7 +247,9 @@
         const mimeType = useMp3 ? 'audio/mpeg' : 'audio/webm;codecs=opus';
         console.log('▶️ Recording with', mimeType);
 
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true }
+        });
         mediaRecorder = new MediaRecorder(stream, { mimeType });
         audioChunks = [];
 
@@ -294,7 +315,9 @@
     async function startFallback() {
       const useMp3  = MR && MR.isTypeSupported && MR.isTypeSupported('audio/mpeg');
       const mime    = useMp3 ? 'audio/mpeg' : 'audio/webm;codecs=opus';
-      convoStream   = await navigator.mediaDevices.getUserMedia({ audio: true });
+      convoStream   = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true }
+      });
       convoRecorder = new MR(convoStream, { mimeType: mime });
       convoChunks   = [];
 
