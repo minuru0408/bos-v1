@@ -167,14 +167,28 @@
     const boot = document.getElementById('boot-screen');
     const main = document.getElementById('main-content');
     const bootAudio = document.getElementById('boot-audio');
+codex/fix-boot-audio-playback-lid07m
+    const transitionToMain = () => {
+
     bootAudio.play().catch(err => console.warn('Boot audio failed:', err));
     setTimeout(() => {
+ main
       boot.classList.add('fade-out');
       boot.addEventListener('transitionend', () => {
         boot.style.display = 'none';
         main.classList.add('fade-in');
       }, { once: true });
-    }, 3000);
+    };
+
+    bootAudio.addEventListener('ended', transitionToMain, { once: true });
+    bootAudio.play()
+      .then(() => {
+        // If autoplay succeeds, wait for audio end
+      })
+      .catch(err => {
+        console.warn('Boot audio failed:', err);
+        transitionToMain();
+      });
 
     // CHAT & TTS
     const chatLog = document.getElementById('chat-log');
