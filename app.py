@@ -51,7 +51,17 @@ def transcribe():
 
     audio_file = request.files['file']
 
-    # —— NEW: fix for Opera GX sending video/webm —— 
+    # Preserve filename for Whisper API
+    audio_file.name = audio_file.filename
+
+    # Validate supported extensions
+    allowed_exts = {"mp3", "wav", "webm", "ogg", "m4a"}
+    if '.' in audio_file.filename:
+        ext = audio_file.filename.rsplit('.', 1)[1].lower()
+        if ext not in allowed_exts:
+            return jsonify({'error': 'Unsupported file type'}), 400
+
+    # —— NEW: fix for Opera GX sending video/webm ——
     # Whisper only accepts audio/webm, not video/webm.
     # If the browser tagged it as video/, convert to audio/.
     if audio_file.mimetype.startswith('video/'):
