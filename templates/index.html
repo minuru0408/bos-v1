@@ -167,6 +167,10 @@
     const boot = document.getElementById('boot-screen');
     const main = document.getElementById('main-content');
     const bootAudio = document.getElementById('boot-audio');
+ codex/fix-boot-audio-playback-p16olr
+
+    function transitionToMain() {
+
  codex/fix-boot-audio-playback-6q8b5l
 
     function transitionToMain() {
@@ -178,11 +182,21 @@ codex/fix-boot-audio-playback-lid07m
     setTimeout(() => {
  main
  main
+ main
       boot.classList.add('fade-out');
       boot.addEventListener('transitionend', () => {
         boot.style.display = 'none';
         main.classList.add('fade-in');
       }, { once: true });
+ codex/fix-boot-audio-playback-p16olr
+    }
+
+    bootAudio.addEventListener('ended', transitionToMain);
+    bootAudio.play().catch(err => {
+      console.warn('Boot audio failed:', err);
+      transitionToMain();
+    });
+
 codex/fix-boot-audio-playback-6q8b5l
     }
 
@@ -201,6 +215,7 @@ main
         console.warn('Boot audio failed:', err);
         transitionToMain();
       });
+ main
 
     // CHAT & TTS
     const chatLog = document.getElementById('chat-log');
