@@ -180,8 +180,19 @@
     const orb     = document.getElementById('visualizer');
     const tts     = document.getElementById('tts-player');
 
+ codex/fix-incorrect-response-from-whisper-v25mki
+    // Track when BOS is speaking to ignore microphone input
+    let ignoreRecognition = false;
+    let discardChunk      = false;
+
     tts.addEventListener('play', () => {
       orb.classList.add('speaking');
+      ignoreRecognition = true;
+      discardChunk      = true;
+
+    tts.addEventListener('play', () => {
+      orb.classList.add('speaking');
+ main
       if (isConversing) {
         if (recognition) {
           recognition.stop();
@@ -193,6 +204,11 @@
 
     tts.addEventListener('ended', () => {
       orb.classList.remove('speaking');
+ codex/fix-incorrect-response-from-whisper-v25mki
+      ignoreRecognition = false;
+      discardChunk      = false;
+
+ main
       if (isConversing) {
         if (recognition) {
           recognition.start();
@@ -323,6 +339,11 @@
 
       convoRecorder.addEventListener('dataavailable', e => convoChunks.push(e.data));
       convoRecorder.addEventListener('stop', async () => {
+        if (discardChunk) {
+          convoChunks = [];
+          if (isConversing) startChunk();
+          return;
+        }
         const blob = new Blob(convoChunks, { type: mime });
         const ext  = useMp3 ? 'mp3' : 'webm';
         const file = new File([blob], `convo.${ext}`, { type: blob.type });
@@ -354,6 +375,7 @@
       recognition.interimResults = false;
 
       recognition.addEventListener('result', e => {
+        if (ignoreRecognition) return;
         const result = e.results[e.resultIndex][0].transcript;
         sendMessage(result);
       });
