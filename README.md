@@ -43,8 +43,8 @@ pip install -r requirements.txt
 python3 app.py
 ```
 
-The server listens on port `5001` by default. Set the `PORT` environment
-variable to change the port, for example if `5001` is already in use:
+The server listens on port `5002` by default. Set the `PORT` environment
+variable to change the port, for example if `5002` is already in use:
 
 ```bash
 PORT=5050 python3 app.py
