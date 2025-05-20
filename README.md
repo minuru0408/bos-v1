@@ -16,6 +16,15 @@ messages are appended to the `HECTOR_Memory_Log` Google Sheet for reference.
 
 ## Gmail OAuth
 
-Set the `GOOGLE_OAUTH_CLIENT_SECRETS` environment variable to the path of your
-Google OAuth client secrets JSON. The application defaults to `credentials.json`
-in the repository root if this variable is not provided.
+The application can send and read email once it is authorized with a Google
+account. Follow these steps:
+
+1. In the **Google Cloud Console**, create a project and enable the **Gmail API**.
+2. Under **Credentials**, create an **OAuth client ID** for a web application and
+   download the JSON file containing the client secrets.
+3. Set the `GOOGLE_OAUTH_CLIENT_SECRETS` environment variable to the path of this
+   JSON file. If the variable is not set, the app looks for `credentials.json` in
+   the repository root.
+4. Run the server and visit `/oauth2login` in your browser to authorize the
+   application. Once authorization completes you can use `/api/email/send` to
+   dispatch messages on behalf of the authenticated account.
