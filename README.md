@@ -16,6 +16,7 @@ messages are appended to the `HECTOR_Memory_Log` Google Sheet for reference.
 
 ## Gmail OAuth
 
+codex/expand-readme-md-for-gmail-oauth-setup
 The application can send and read email once it is authorized with a Google
 account. Follow these steps:
 
@@ -28,3 +29,24 @@ account. Follow these steps:
 4. Run the server and visit `/oauth2login` in your browser to authorize the
    application. Once authorization completes you can use `/api/email/send` to
    dispatch messages on behalf of the authenticated account.
+   
+Set the `GOOGLE_OAUTH_CLIENT_SECRETS` environment variable to the path of your
+Google OAuth client secrets JSON. The application defaults to `credentials.json`
+in the repository root if this variable is not provided.
+
+## Running the app
+
+Install Python dependencies and launch the server locally:
+
+```bash
+pip install -r requirements.txt
+python3 app.py
+```
+
+The server listens on port `5001` by default. Set the `PORT` environment
+variable to change the port, for example if `5001` is already in use:
+
+```bash
+PORT=5050 python3 app.py
+```
+ main
