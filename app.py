@@ -251,12 +251,20 @@ def index():
 def message():
     data      = request.get_json() or {}
     user_text = data.get("text", "").strip()
+
+    # Load previous conversation from Google Sheets (if configured)
+    history = load_memory()
+    if not isinstance(history, list):
+        history = []
+
+    # Build the message list for ChatGPT
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages.extend(history)
+    messages.append({"role": "user", "content": user_text})
+
+    # Log after loading so we don't duplicate the latest message
     log_message("user", user_text)
 
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user",   "content": user_text}
-    ]
     resp = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=messages

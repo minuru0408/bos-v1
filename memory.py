@@ -5,12 +5,11 @@ from datetime import datetime
 
 
 def _get_sheet():
-    """Return authorized gspread worksheet or None if creds missing."""
+    """Return authorized gspread worksheet or (None, None) if creds missing."""
     creds_path = os.getenv("GOOGLE_SHEETS_CREDS")
-    if not creds_path:
-        return None, "GOOGLE_SHEETS_CREDS environment variable not set"
-    if not os.path.exists(creds_path):
-        return None, f"Google Sheets credentials file not found: {creds_path}"
+    if not creds_path or not os.path.exists(creds_path):
+        # Credentials are optional. If not provided, just return None
+        return None, None
     scope = [
         "https://spreadsheets.google.com/feeds",
         "https://www.googleapis.com/auth/drive",
@@ -21,18 +20,20 @@ def _get_sheet():
     return sheet, None
 
 def log_message(role, text):
-    """Append a timestamped message (role + text) to Google Sheet."""
+    """Append a timestamped message to Google Sheet if configured."""
     sheet, err = _get_sheet()
-    if err:
-        return err
+    if err or sheet is None:
+        # No credentials configured; skip logging
+        return None
     sheet.append_row([role, text, datetime.now().isoformat()])
     return None
 
 def load_memory(limit=20):
     """Fetch the last `limit` messages from the sheet as a list of {role,content}."""
     sheet, err = _get_sheet()
-    if err:
-        return err
+    if err or sheet is None:
+        # No credentials or sheet available
+        return []
 
     # Get all rows, keep only the last `limit`
     all_rows = sheet.get_all_values()  # each row = [role, text, timestamp]
