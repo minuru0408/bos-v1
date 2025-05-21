@@ -17,7 +17,7 @@ from google.oauth2.credentials   import Credentials
 from googleapiclient.discovery    import build
 from google.auth.transport.requests import Request
 import base64
-from memory import log_message
+from memory import log_message, load_memory
 
 
 
