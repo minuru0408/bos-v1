@@ -78,6 +78,8 @@ TOKEN_FILE = os.getenv("GMAIL_TOKEN_FILE", "gmail_token.json")
 
 @app.route("/oauth2login")
 def oauth2login():
+    if not os.path.exists(CLIENT_SECRETS_FILE):
+        return "Gmail client secrets file not found", 500
     flow = Flow.from_client_secrets_file(
         CLIENT_SECRETS_FILE,
         scopes=SCOPES,
