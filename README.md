@@ -61,3 +61,9 @@ as `10000`). You can override the port manually when launching the server:
 ```bash
 PORT=5001 python3 app.py
 ```
+
+## Login
+
+The web interface requires a simple ID and password before showing the boot screen.
+Set `HECTOR_LOGIN_ID` and `HECTOR_LOGIN_PASSWORD` to control the accepted
+credentials. They default to `admin` and `pass`.

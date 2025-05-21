@@ -32,6 +32,10 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
+# Simple login credentials
+LOGIN_ID       = os.getenv("HECTOR_LOGIN_ID", "admin")
+LOGIN_PASSWORD = os.getenv("HECTOR_LOGIN_PASSWORD", "pass")
+
 logging.basicConfig(level=logging.INFO)
 
 
@@ -265,7 +269,21 @@ def transcribe():
 
 @app.route("/")
 def index():
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
     return render_template("index.html")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        user_id  = request.form.get("id", "")
+        password = request.form.get("password", "")
+        if user_id == LOGIN_ID and password == LOGIN_PASSWORD:
+            session["logged_in"] = True
+            return redirect(url_for("index"))
+        return render_template("login.html", error="Invalid credentials")
+    return render_template("login.html")
 
 
 @app.route("/api/message", methods=["POST"])
