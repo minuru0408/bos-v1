@@ -74,6 +74,7 @@ SCOPES = [
 ]
 
 CLIENT_SECRETS_FILE = os.getenv("GOOGLE_OAUTH_CLIENT_SECRETS", "credentials.json")
+TOKEN_FILE = os.getenv("GMAIL_TOKEN_FILE", "gmail_token.json")
 
 @app.route("/oauth2login")
 def oauth2login():
@@ -102,8 +103,7 @@ def oauth2callback():
         return "State mismatch", 400
     flow.fetch_token(authorization_response=request.url)
     creds = flow.credentials
-    # Save tokens in session
-    session["gmail_creds"] = {
+    creds_data = {
         "token": _json_safe(creds.token),
         "refresh_token": _json_safe(creds.refresh_token),
         "token_uri": _json_safe(creds.token_uri),
@@ -111,18 +111,24 @@ def oauth2callback():
         "client_secret": _json_safe(creds.client_secret),
         "scopes": list(creds.scopes) if getattr(creds, "scopes", None) is not None else []
     }
+    # Persist credentials server-side
+    with open(TOKEN_FILE, "w") as f:
+        json.dump(creds_data, f)
     return redirect(url_for("index"))
 
 def get_gmail_service():
-    creds_data = session.get("gmail_creds")
-    if not creds_data:
+    if not os.path.exists(TOKEN_FILE):
         return None
+    with open(TOKEN_FILE, "r") as f:
+        creds_data = json.load(f)
     creds = Credentials(**creds_data)
-    # Auto-refresh access token if needed and update the session
+    # Auto-refresh access token if needed and persist the new token
     if creds.expired and creds.refresh_token:
         try:
             creds.refresh(Request())
-            session["gmail_creds"]["token"] = _json_safe(creds.token)
+            creds_data["token"] = _json_safe(creds.token)
+            with open(TOKEN_FILE, "w") as f:
+                json.dump(creds_data, f)
         except Exception:
             return None
     return build("gmail", "v1", credentials=creds)
