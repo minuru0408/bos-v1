@@ -30,8 +30,10 @@ account. Follow these steps:
 4. (Optional) Set `GMAIL_TOKEN_FILE` to control where the OAuth token is stored.
    It defaults to `gmail_token.json` in the repository root.
 5. Run the server and visit `/oauth2login` in your browser to authorize the
-   application. Once authorization completes you can use `/api/email/send` to
-   dispatch messages on behalf of the authenticated account.
+   application. Once authorization completes you can instruct H.E.C.T.O.R to
+   send email. Say something like “send an email to foo@example.com about the
+   meeting.” The assistant responds with a hidden JSON payload that the server
+   uses to dispatch the message.
    
 Set the `GOOGLE_OAUTH_CLIENT_SECRETS` environment variable to the path of your
 Google OAuth client secrets JSON. The application defaults to `credentials.json`
