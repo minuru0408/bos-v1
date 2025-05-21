@@ -134,6 +134,36 @@
     }
     #record-btn:hover,
     #conversation-btn:hover { background: #333; }
+
+    /* EMAIL FORM */
+    #email-form {
+      width: 80%;
+      max-width: 600px;
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 1rem;
+    }
+    #email-form input,
+    #email-form textarea {
+      margin-bottom: .5rem;
+      padding: .5em;
+      background: #111;
+      color: #fff;
+      border: 1px solid #333;
+      border-radius: 6px;
+      font-size: 1em;
+    }
+    #send-email-btn {
+      padding: .5em;
+      background: #fff;
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1em;
+      transition: background 0.2s ease;
+    }
+    #send-email-btn:hover { background: #ddd; }
   </style>
 </head>
 <body>
@@ -162,8 +192,15 @@
         <button id="conversation-btn">💬 Converse</button>
       </div>
 
-    <audio id="tts-player" style="display:none;"></audio>
-  </div>
+      <form id="email-form">
+        <input id="email-to" type="email" placeholder="Recipient" required />
+        <input id="email-subject" type="text" placeholder="Subject" required />
+        <textarea id="email-body" placeholder="Body" required></textarea>
+        <button id="send-email-btn" type="submit">Send Email</button>
+      </form>
+
+      <audio id="tts-player" style="display:none;"></audio>
+    </div>
 
   <script>
     // BOOT → MAIN
@@ -192,6 +229,12 @@
     const btn  = document.getElementById('send-btn');
     const orb  = document.getElementById('visualizer');
     const tts  = document.getElementById('tts-player');
+
+    // EMAIL FORM ELEMENTS
+    const emailForm    = document.getElementById('email-form');
+    const emailTo      = document.getElementById('email-to');
+    const emailSubject = document.getElementById('email-subject');
+    const emailBody    = document.getElementById('email-body');
 
     function appendMessage(cls, label, text) {
       const div = document.createElement('div');
@@ -266,6 +309,32 @@
     btn.addEventListener('click', sendMessage);
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter') sendMessage();
+    });
+
+    // EMAIL FORM SUBMISSION
+    emailForm.addEventListener('submit', async e => {
+      e.preventDefault();
+      const payload = {
+        to: emailTo.value.trim(),
+        subject: emailSubject.value.trim(),
+        body: emailBody.value.trim(),
+      };
+      try {
+        const res = await fetch('/api/email/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          appendMessage('hector', 'H.E.C.T.O.R:', `Email error: ${data.error || res.statusText}`);
+        } else {
+          appendMessage('hector', 'H.E.C.T.O.R:', 'Email sent.');
+          emailForm.reset();
+        }
+      } catch (err) {
+        appendMessage('hector', 'H.E.C.T.O.R:', `Email error: ${err}`);
+      }
     });
 
     // RECORD / STOP → WHISPER
