@@ -1,6 +1,7 @@
 
 import os
 import json
+import logging
 try:
     import openai
 except ImportError as e:
@@ -30,6 +31,8 @@ for var in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
 openai.api_key = os.getenv("OPENAI_API_KEY")
+
+logging.basicConfig(level=logging.INFO)
 
 
 def _json_safe(value):
@@ -120,18 +123,24 @@ def oauth2callback():
 
 def get_gmail_service():
     if not os.path.exists(TOKEN_FILE):
+        logging.info("Gmail token file missing. User must authorize via /oauth2login")
         return None
     with open(TOKEN_FILE, "r") as f:
         creds_data = json.load(f)
     creds = Credentials(**creds_data)
     # Auto-refresh access token if needed and persist the new token
-    if creds.expired and creds.refresh_token:
-        try:
-            creds.refresh(Request())
-            creds_data["token"] = _json_safe(creds.token)
-            with open(TOKEN_FILE, "w") as f:
-                json.dump(creds_data, f)
-        except Exception:
+    if creds.expired:
+        if creds.refresh_token:
+            try:
+                creds.refresh(Request())
+                creds_data["token"] = _json_safe(creds.token)
+                with open(TOKEN_FILE, "w") as f:
+                    json.dump(creds_data, f)
+            except Exception as e:
+                logging.warning("Failed to refresh Gmail token: %s", e)
+                return None
+        else:
+            logging.info("Gmail credentials expired with no refresh token")
             return None
     return build("gmail", "v1", credentials=creds)
 
@@ -156,7 +165,11 @@ def send_email():
 
     service = get_gmail_service()
     if not service:
-        return jsonify({"error": "Not authenticated with Gmail"}), 401
+        logging.info("Email send attempted without valid Gmail credentials")
+        return jsonify({
+            "error": "Not authenticated with Gmail",
+            "hint": "Visit /oauth2login to connect your Google account"
+        }), 401
 
     # Build RFC2822 email
     message = MIMEText(body)
