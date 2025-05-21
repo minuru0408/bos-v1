@@ -16,7 +16,6 @@ messages are appended to the `HECTOR_Memory_Log` Google Sheet for reference.
 
 ## Gmail OAuth
 
-codex/expand-readme-md-for-gmail-oauth-setup
 The application can send and read email once it is authorized with a Google
 account. Follow these steps:
 
