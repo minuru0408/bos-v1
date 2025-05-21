@@ -42,6 +42,9 @@ def load_memory(limit=20):
     messages = []
     for row in recent:
         role, text, _ = row
+        role = role.lower()
+        if role == "hector":
+            role = "assistant"
         messages.append({"role": role, "content": text})
     return messages
 

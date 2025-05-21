@@ -294,7 +294,7 @@ def message():
     else:
         reply = raw
 
-    log_message("hector", reply)
+    log_message("assistant", reply)
 
     return jsonify({"reply": reply})
 
