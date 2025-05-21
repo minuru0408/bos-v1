@@ -1,7 +1,12 @@
 
 import os
 import json
-import openai
+try:
+    import openai
+except ImportError as e:
+    raise ImportError(
+        "Missing required package 'openai'. Run 'pip install -r requirements.txt' first."
+    ) from e
 from flask import Flask, render_template, request, jsonify
 from speech import speak_text
 from search import intelligent_search

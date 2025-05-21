@@ -43,6 +43,10 @@ pip install -r requirements.txt
 python3 app.py
 ```
 
+If you skip the `pip install` step, the server fails to start with errors like
+`ModuleNotFoundError: No module named 'openai'`, which means `/oauth2login` will
+refuse to connect because nothing is listening on port 5002.
+
 The server listens on port `5002` by default. Set the `PORT` environment
 variable to change the port, for example if `5002` is already in use:
 
