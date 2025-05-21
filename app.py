@@ -65,7 +65,9 @@ YOUR BEHAVIOR:
 
 FORMAT RULES:
 - Do not expose any JSON or raw search commands in your replies. All searches happen internally.
-- Provide plain-text answers only.
+- Provide plain-text answers only, except when sending an email.
+- If asked to send an email, respond **only** with JSON:
+  {"email": {"to": "recipient", "subject": "subject", "body": "message"}}
 - Always address the user as “Sir.”
 
 Maintain this protocol rigorously.
@@ -146,6 +148,24 @@ def get_gmail_service():
 
 from email.mime.text import MIMEText
 
+
+def dispatch_email(to: str, subject: str, body: str):
+    """Send an email using Gmail API and return (success, info)."""
+    service = get_gmail_service()
+    if not service:
+        logging.info("Email send attempted without valid Gmail credentials")
+        return False, "Not authenticated with Gmail"
+    message = MIMEText(body)
+    message["to"] = to
+    message["subject"] = subject
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    try:
+        sent = service.users().messages().send(userId="me", body={"raw": raw}).execute()
+        return True, sent.get("id")
+    except Exception as e:
+        logging.error("Gmail send failure: %s", e)
+        return False, str(e)
+
 @app.route("/api/email/send", methods=["POST"])
 def send_email():
     data = request.get_json() or {}
@@ -163,25 +183,13 @@ def send_email():
     if missing:
         return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
 
-    service = get_gmail_service()
-    if not service:
-        logging.info("Email send attempted without valid Gmail credentials")
+    success, info = dispatch_email(to, subject, body)
+    if not success:
         return jsonify({
-            "error": "Not authenticated with Gmail",
-            "hint": "Visit /oauth2login to connect your Google account"
-        }), 401
-
-    # Build RFC2822 email
-    message = MIMEText(body)
-    message["to"]      = to
-    message["subject"] = subject
-    raw   = base64.urlsafe_b64encode(message.as_bytes()).decode()
-
-    sent = service.users().messages().send(
-        userId="me", body={"raw": raw}
-    ).execute()
-
-    return jsonify({"messageId": sent.get("id")})
+            "error": info,
+            "hint": "Visit /oauth2login to connect your Google account" if info == "Not authenticated with Gmail" else ""
+        }), 401 if info == "Not authenticated with Gmail" else 500
+    return jsonify({"messageId": info})
 
 
 @app.route("/api/email/read", methods=["GET"])
@@ -284,14 +292,24 @@ def message():
     )
     raw = resp.choices[0].message.content.strip()
 
-    # Try parse {"search":"..."} JSON
+    # Try parse JSON commands
     try:
         obj = json.loads(raw)
-        query = obj.get("search")
     except json.JSONDecodeError:
-        query = None
+        obj = {}
+    query = obj.get("search")
+    email_cmd = obj.get("email") if isinstance(obj, dict) else None
 
-    if query:
+    if email_cmd:
+        to      = (email_cmd.get("to") or "").strip()
+        subject = (email_cmd.get("subject") or "").strip()
+        body    = (email_cmd.get("body") or "").strip()
+        if not (to and subject and body):
+            reply = "Email information incomplete."
+        else:
+            success, info = dispatch_email(to, subject, body)
+            reply = "Email sent." if success else f"Email error: {info}"
+    elif query:
         # perform intelligent_search
         try:
             items = intelligent_search(query)
