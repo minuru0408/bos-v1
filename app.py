@@ -1,7 +1,13 @@
 
 import os
 import json
-import openai
+import logging
+try:
+    import openai
+except ImportError as e:
+    raise ImportError(
+        "Missing required package 'openai'. Run 'pip install -r requirements.txt' first."
+    ) from e
 from flask import Flask, render_template, request, jsonify
 from speech import speak_text
 from search import intelligent_search
@@ -12,7 +18,7 @@ from google.oauth2.credentials   import Credentials
 from googleapiclient.discovery    import build
 from google.auth.transport.requests import Request
 import base64
-from memory import log_message
+from memory import log_message, load_memory
 
 
 
@@ -25,6 +31,12 @@ for var in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
 openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# Simple login credentials
+LOGIN_ID       = os.getenv("HECTOR_LOGIN_ID", "admin")
+LOGIN_PASSWORD = os.getenv("HECTOR_LOGIN_PASSWORD", "pass")
+
+logging.basicConfig(level=logging.INFO)
 
 
 def _json_safe(value):
@@ -57,7 +69,9 @@ YOUR BEHAVIOR:
 
 FORMAT RULES:
 - Do not expose any JSON or raw search commands in your replies. All searches happen internally.
-- Provide plain-text answers only.
+- Provide plain-text answers only, except when sending an email.
+- If asked to send an email, respond **only** with JSON:
+  {"email": {"to": "recipient", "subject": "subject", "body": "message"}}
 - Always address the user as “Sir.”
 
 Maintain this protocol rigorously.
@@ -68,10 +82,15 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly"
 ]
 
+CLIENT_SECRETS_FILE = os.getenv("GOOGLE_OAUTH_CLIENT_SECRETS", "credentials.json")
+TOKEN_FILE = os.getenv("GMAIL_TOKEN_FILE", "gmail_token.json")
+
 @app.route("/oauth2login")
 def oauth2login():
+    if not os.path.exists(CLIENT_SECRETS_FILE):
+        return "Gmail client secrets file not found", 500
     flow = Flow.from_client_secrets_file(
-        "credentials.json",
+        CLIENT_SECRETS_FILE,
         scopes=SCOPES,
         redirect_uri=url_for("oauth2callback", _external=True)
     )
@@ -86,7 +105,7 @@ def oauth2login():
 def oauth2callback():
     stored_state = session.get("oauth_state")
     flow = Flow.from_client_secrets_file(
-        "credentials.json",
+        CLIENT_SECRETS_FILE,
         scopes=SCOPES,
         state=stored_state,
         redirect_uri=url_for("oauth2callback", _external=True)
@@ -95,8 +114,7 @@ def oauth2callback():
         return "State mismatch", 400
     flow.fetch_token(authorization_response=request.url)
     creds = flow.credentials
-    # Save tokens in session
-    session["gmail_creds"] = {
+    creds_data = {
         "token": _json_safe(creds.token),
         "refresh_token": _json_safe(creds.refresh_token),
         "token_uri": _json_safe(creds.token_uri),
@@ -104,23 +122,53 @@ def oauth2callback():
         "client_secret": _json_safe(creds.client_secret),
         "scopes": list(creds.scopes) if getattr(creds, "scopes", None) is not None else []
     }
+    # Persist credentials server-side
+    with open(TOKEN_FILE, "w") as f:
+        json.dump(creds_data, f)
     return redirect(url_for("index"))
 
 def get_gmail_service():
-    creds_data = session.get("gmail_creds")
-    if not creds_data:
+    if not os.path.exists(TOKEN_FILE):
+        logging.info("Gmail token file missing. User must authorize via /oauth2login")
         return None
+    with open(TOKEN_FILE, "r") as f:
+        creds_data = json.load(f)
     creds = Credentials(**creds_data)
-    # Auto-refresh access token if needed and update the session
-    if creds.expired and creds.refresh_token:
-        try:
-            creds.refresh(Request())
-            session["gmail_creds"]["token"] = _json_safe(creds.token)
-        except Exception:
+    # Auto-refresh access token if needed and persist the new token
+    if creds.expired:
+        if creds.refresh_token:
+            try:
+                creds.refresh(Request())
+                creds_data["token"] = _json_safe(creds.token)
+                with open(TOKEN_FILE, "w") as f:
+                    json.dump(creds_data, f)
+            except Exception as e:
+                logging.warning("Failed to refresh Gmail token: %s", e)
+                return None
+        else:
+            logging.info("Gmail credentials expired with no refresh token")
             return None
     return build("gmail", "v1", credentials=creds)
 
 from email.mime.text import MIMEText
+
+
+def dispatch_email(to: str, subject: str, body: str):
+    """Send an email using Gmail API and return (success, info)."""
+    service = get_gmail_service()
+    if not service:
+        logging.info("Email send attempted without valid Gmail credentials")
+        return False, "Not authenticated with Gmail"
+    message = MIMEText(body)
+    message["to"] = to
+    message["subject"] = subject
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    try:
+        sent = service.users().messages().send(userId="me", body={"raw": raw}).execute()
+        return True, sent.get("id")
+    except Exception as e:
+        logging.error("Gmail send failure: %s", e)
+        return False, str(e)
 
 @app.route("/api/email/send", methods=["POST"])
 def send_email():
@@ -139,21 +187,13 @@ def send_email():
     if missing:
         return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
 
-    service = get_gmail_service()
-    if not service:
-        return jsonify({"error": "Not authenticated with Gmail"}), 401
-
-    # Build RFC2822 email
-    message = MIMEText(body)
-    message["to"]      = to
-    message["subject"] = subject
-    raw   = base64.urlsafe_b64encode(message.as_bytes()).decode()
-
-    sent = service.users().messages().send(
-        userId="me", body={"raw": raw}
-    ).execute()
-
-    return jsonify({"messageId": sent.get("id")})
+    success, info = dispatch_email(to, subject, body)
+    if not success:
+        return jsonify({
+            "error": info,
+            "hint": "Visit /oauth2login to connect your Google account" if info == "Not authenticated with Gmail" else ""
+        }), 401 if info == "Not authenticated with Gmail" else 500
+    return jsonify({"messageId": info})
 
 
 @app.route("/api/email/read", methods=["GET"])
@@ -229,33 +269,65 @@ def transcribe():
 
 @app.route("/")
 def index():
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
     return render_template("index.html")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        user_id  = request.form.get("id", "")
+        password = request.form.get("password", "")
+        if user_id == LOGIN_ID and password == LOGIN_PASSWORD:
+            session["logged_in"] = True
+            return redirect(url_for("index"))
+        return render_template("login.html", error="Invalid credentials")
+    return render_template("login.html")
 
 
 @app.route("/api/message", methods=["POST"])
 def message():
     data      = request.get_json() or {}
     user_text = data.get("text", "").strip()
+
+    # Load previous conversation from Google Sheets (if configured)
+    history = load_memory()
+    if not isinstance(history, list):
+        history = []
+
+    # Build the message list for ChatGPT
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages.extend(history)
+    messages.append({"role": "user", "content": user_text})
+
+    # Log after loading so we don't duplicate the latest message
     log_message("user", user_text)
 
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user",   "content": user_text}
-    ]
     resp = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=messages
     )
     raw = resp.choices[0].message.content.strip()
 
-    # Try parse {"search":"..."} JSON
+    # Try parse JSON commands
     try:
         obj = json.loads(raw)
-        query = obj.get("search")
     except json.JSONDecodeError:
-        query = None
+        obj = {}
+    query = obj.get("search")
+    email_cmd = obj.get("email") if isinstance(obj, dict) else None
 
-    if query:
+    if email_cmd:
+        to      = (email_cmd.get("to") or "").strip()
+        subject = (email_cmd.get("subject") or "").strip()
+        body    = (email_cmd.get("body") or "").strip()
+        if not (to and subject and body):
+            reply = "Email information incomplete."
+        else:
+            success, info = dispatch_email(to, subject, body)
+            reply = "Email sent." if success else f"Email error: {info}"
+    elif query:
         # perform intelligent_search
         try:
             items = intelligent_search(query)
@@ -271,7 +343,7 @@ def message():
     else:
         reply = raw
 
-    log_message("hector", reply)
+    log_message("assistant", reply)
 
     return jsonify({"reply": reply})
 
@@ -308,5 +380,5 @@ def web_search():
 
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 5001))
+    port = int(os.getenv("PORT", 5002))
     app.run(host="0.0.0.0", port=port, debug=True)
