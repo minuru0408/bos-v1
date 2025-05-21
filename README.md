@@ -53,4 +53,3 @@ variable to change the port, for example if `5002` is already in use:
 ```bash
 PORT=5050 python3 app.py
 ```
- main
