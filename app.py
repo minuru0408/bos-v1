@@ -13,6 +13,15 @@ from googleapiclient.discovery    import build
 from google.auth.transport.requests import Request
 import base64
 
+CLIENT_SECRETS_FILE = os.getenv(
+    "GOOGLE_OAUTH_CLIENT_SECRETS",
+    "credentials.json"   # fallback if you ever run locally without the ENV var
+)
+
+GSHEETS_CREDS_FILE = os.getenv(
+    "GOOGLE_SHEETS_CREDS",
+    "creds.json"
+)
 
 
 load_dotenv()  # make sure your .env is loaded
