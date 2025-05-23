@@ -123,6 +123,29 @@ def get_gmail_service():
             json.dump(data, f)
     return build('gmail', 'v1', credentials=creds)
 
+import re
+
+@app.route("/api/message", methods=["POST"])
+def message():
+    data      = request.get_json() or {}
+    user_text = data.get("text", "").strip()
+
+    # ← NEW: catch natural‐language “send an email to …” commands
+    m = re.match(
+        r'send (?:an )?email to\s+([^\s]+)\s+with subject\s+"([^"]+)"\s+and body\s+"([^"]+)"',
+        user_text, re.IGNORECASE
+    )
+    if m:
+        to, subject, body = m.groups()
+        success, info = dispatch_email(to, subject, body)
+        reply = "Email sent, Sir." if success else f"Email error: {info}"
+        log_message("assistant", reply)
+        return jsonify({"reply": reply})
+
+    # ——— rest of your existing code ———
+    ...
+
+
 @app.route('/api/send', methods=['POST'])
 def api_send_email():
     data = request.get_json() or {}
