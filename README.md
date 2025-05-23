@@ -41,6 +41,18 @@ in the repository root if this variable is not provided. The OAuth token is
 saved to `gmail_token.json` unless you override the path with
 `GMAIL_TOKEN_FILE`.
 
+## API keys and secrets
+
+Create a `.env` file (see `.env.example`) to hold the keys needed for external
+services:
+
+- `OPENAI_API_KEY` – allows the assistant to call OpenAI’s models.
+- `GOOGLE_SEARCH_API_KEY` and `GOOGLE_CSE_ID` – enable web search for up to date
+  information.
+- `ELEVENLABS_API_KEY` – lets the app generate speech with ElevenLabs. Optional
+  `ELEVENLABS_VOICE_ID` chooses the voice. If omitted, a default voice is used.
+- `FLASK_SECRET_KEY` – secures Flask sessions and should be a random string.
+
 ## Running the app
 
 Install Python dependencies and launch the server locally:
