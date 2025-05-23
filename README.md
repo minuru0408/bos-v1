@@ -34,6 +34,10 @@ account. Follow these steps:
    send email. Say something like “send an email to foo@example.com about the
    meeting.” The assistant responds with a hidden JSON payload that the server
    uses to dispatch the message.
+6. Verify that the token file works by reading your inbox. With the server
+   running, open `http://localhost:5002/api/email/read` in a browser or run
+   `curl http://localhost:5002/api/email/read`. A JSON list of recent messages
+   confirms that the Gmail connection is active.
    
 Set the `GOOGLE_OAUTH_CLIENT_SECRETS` environment variable to the path of your
 Google OAuth client secrets JSON. The application defaults to `credentials.json`
