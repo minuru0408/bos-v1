@@ -340,6 +340,11 @@ def message():
         # perform intelligent_search
         try:
             items = intelligent_search(query)
+        except RuntimeError as e:
+            reply = f"Search configuration error: {e}"
+        except Exception as e:
+            reply = f"Search error: {e}"
+        else:
             if not items:
                 reply = f"No results found for “{query}.”"
             else:
@@ -347,8 +352,6 @@ def message():
                 for i, item in enumerate(items, start=1):
                     lines.append(f"{i}. {item['title']}\n   {item['snippet']}\n   {item['link']}")
                 reply = "\n".join(lines)
-        except Exception as e:
-            reply = f"Search error: {e}"
     else:
         reply = raw
 
@@ -377,15 +380,18 @@ def web_search():
 
     try:
         items = intelligent_search(query)
-        results = [
-            {"title": item.get("title"),
-             "snippet": item.get("snippet"),
-             "link": item.get("link")}
-            for item in items
-        ]
-        return jsonify({"results": results})
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+    results = [
+        {"title": item.get("title"),
+         "snippet": item.get("snippet"),
+         "link": item.get("link")}
+        for item in items
+    ]
+    return jsonify({"results": results})
 
 
 if __name__ == "__main__":
