@@ -5,3 +5,4 @@ creds.json
 # macOS Finder files
 .DS_Store
 gmail_token.json
+credentials.json
