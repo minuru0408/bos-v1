@@ -34,12 +34,28 @@ account. Follow these steps:
    send email. Say something like “send an email to foo@example.com about the
    meeting.” The assistant responds with a hidden JSON payload that the server
    uses to dispatch the message.
+6. Verify that the token file works by reading your inbox. With the server
+   running, open `http://localhost:5002/api/email/read` in a browser or run
+   `curl http://localhost:5002/api/email/read`. A JSON list of recent messages
+   confirms that the Gmail connection is active.
    
 Set the `GOOGLE_OAUTH_CLIENT_SECRETS` environment variable to the path of your
 Google OAuth client secrets JSON. The application defaults to `credentials.json`
 in the repository root if this variable is not provided. The OAuth token is
 saved to `gmail_token.json` unless you override the path with
 `GMAIL_TOKEN_FILE`.
+
+## API keys and secrets
+
+Create a `.env` file (see `.env.example`) to hold the keys needed for external
+services:
+
+- `OPENAI_API_KEY` – allows the assistant to call OpenAI’s models.
+- `GOOGLE_SEARCH_API_KEY` and `GOOGLE_CSE_ID` – enable web search for up to date
+  information.
+- `ELEVENLABS_API_KEY` – lets the app generate speech with ElevenLabs. Optional
+  `ELEVENLABS_VOICE_ID` chooses the voice. If omitted, a default voice is used.
+- `FLASK_SECRET_KEY` – secures Flask sessions and should be a random string.
 
 ## Running the app
 
@@ -67,3 +83,7 @@ PORT=5001 python3 app.py
 The web interface requires a simple ID and password before showing the boot screen.
 Set `HECTOR_LOGIN_ID` and `HECTOR_LOGIN_PASSWORD` to control the accepted
 credentials. They default to `admin` and `pass`.
+
+The login state now lasts only for a single page load. Once the index page
+renders, the session is cleared so the login form reappears the next time the
+site is opened. You can also manually log out by visiting `/logout`.

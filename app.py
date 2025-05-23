@@ -66,6 +66,7 @@ YOUR BEHAVIOR:
 - Answer directly and succinctly. If asked for today’s date, reply simply: “Today is May 19, 2025, Sir.”
 - Offer polite suggestions only when helpful.
 - Infuse a light Jarvis-style sense of humor where appropriate (e.g. “My circuits agree: it’s May 19, 2025 today, Sir.”).
+- When authorized, you can send and read the user's Gmail messages when asked.
 
 FORMAT RULES:
 - Do not expose any JSON or raw search commands in your replies. All searches happen internally.
@@ -271,6 +272,8 @@ def transcribe():
 def index():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
+    # Clear the flag so the login screen shows on the next visit
+    session.pop("logged_in", None)
     return render_template("index.html")
 
 
@@ -284,6 +287,13 @@ def login():
             return redirect(url_for("index"))
         return render_template("login.html", error="Invalid credentials")
     return render_template("login.html")
+
+
+@app.route("/logout")
+def logout():
+    """Clear login flag and redirect to the login page."""
+    session.pop("logged_in", None)
+    return redirect(url_for("login"))
 
 
 @app.route("/api/message", methods=["POST"])
@@ -331,6 +341,11 @@ def message():
         # perform intelligent_search
         try:
             items = intelligent_search(query)
+        except RuntimeError as e:
+            reply = f"Search configuration error: {e}"
+        except Exception as e:
+            reply = f"Search error: {e}"
+        else:
             if not items:
                 reply = f"No results found for “{query}.”"
             else:
@@ -338,8 +353,6 @@ def message():
                 for i, item in enumerate(items, start=1):
                     lines.append(f"{i}. {item['title']}\n   {item['snippet']}\n   {item['link']}")
                 reply = "\n".join(lines)
-        except Exception as e:
-            reply = f"Search error: {e}"
     else:
         reply = raw
 
@@ -368,15 +381,18 @@ def web_search():
 
     try:
         items = intelligent_search(query)
-        results = [
-            {"title": item.get("title"),
-             "snippet": item.get("snippet"),
-             "link": item.get("link")}
-            for item in items
-        ]
-        return jsonify({"results": results})
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+    results = [
+        {"title": item.get("title"),
+         "snippet": item.get("snippet"),
+         "link": item.get("link")}
+        for item in items
+    ]
+    return jsonify({"results": results})
 
 
 if __name__ == "__main__":
