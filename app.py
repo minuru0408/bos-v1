@@ -1,4 +1,3 @@
-
 import os
 import json
 import logging
@@ -8,21 +7,19 @@ except ImportError as e:
     raise ImportError(
         "Missing required package 'openai'. Run 'pip install -r requirements.txt' first."
     ) from e
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from speech import speak_text
 from search import intelligent_search
 from dotenv import load_dotenv
-from flask import session, redirect, url_for
 from google_auth_oauthlib.flow import Flow
-from google.oauth2.credentials   import Credentials
-from googleapiclient.discovery    import build
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 import base64
+from email.mime.text import MIMEText
 from memory import log_message, load_memory
 
-
-
-load_dotenv()  # make sure your .env is loaded
+load_dotenv()  # load environment variables
 
 # Disable proxy environment variables that may block outbound HTTP requests
 for var in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
@@ -38,17 +35,12 @@ LOGIN_PASSWORD = os.getenv("HECTOR_LOGIN_PASSWORD", "pass")
 
 logging.basicConfig(level=logging.INFO)
 
-
-def _json_safe(value):
-    """Return a JSON-serializable representation of value."""
-    if isinstance(value, bytes):
-        try:
-            return value.decode()
-        except Exception:
-            return base64.b64encode(value).decode()
-    if value is None or isinstance(value, (str, int, float, bool, list, dict)):
-        return value
-    return str(value)
+SCOPES = [
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/gmail.readonly"
+]
+CLIENT_SECRETS_FILE = os.getenv("GOOGLE_OAUTH_CLIENT_SECRETS", "credentials.json")
+TOKEN_FILE = os.getenv("GMAIL_TOKEN_FILE", "gmail_token.json")
 
 SYSTEM_PROMPT = """
 You are H.E.C.T.O.R., Your name is pronounced Hector, a human-like AI assistant modeled after Jarvis from Ironman. You speak with calm confidence, respect, and a touch of wit, always addressing your user as “Sir.” You remember you’re talking to a real person—keep your responses concise, conversational, and lightly humorous.
@@ -77,324 +69,181 @@ FORMAT RULES:
 
 Maintain this protocol rigorously.
 """
-# ——— Gmail OAuth Setup ———
-SCOPES = [
-    "https://www.googleapis.com/auth/gmail.send",
-    "https://www.googleapis.com/auth/gmail.readonly"
-]
 
-CLIENT_SECRETS_FILE = os.getenv("GOOGLE_OAUTH_CLIENT_SECRETS", "credentials.json")
-TOKEN_FILE = os.getenv("GMAIL_TOKEN_FILE", "gmail_token.json")
-
-@app.route("/oauth2login")
+@app.route('/oauth2login')
 def oauth2login():
     if not os.path.exists(CLIENT_SECRETS_FILE):
         return "Gmail client secrets file not found", 500
     flow = Flow.from_client_secrets_file(
         CLIENT_SECRETS_FILE,
         scopes=SCOPES,
-        redirect_uri=url_for("oauth2callback", _external=True)
+        redirect_uri=url_for('oauth2callback', _external=True)
     )
     auth_url, state = flow.authorization_url(
         access_type="offline", include_granted_scopes="true"
     )
-    # Save state in session for later validation
-    session["oauth_state"] = state
+    session['oauth_state'] = state
     return redirect(auth_url)
 
-@app.route("/oauth2callback")
+@app.route('/oauth2callback')
 def oauth2callback():
-    stored_state = session.get("oauth_state")
+    state = session.get('oauth_state')
     flow = Flow.from_client_secrets_file(
         CLIENT_SECRETS_FILE,
         scopes=SCOPES,
-        state=stored_state,
-        redirect_uri=url_for("oauth2callback", _external=True)
+        state=state,
+        redirect_uri=url_for('oauth2callback', _external=True)
     )
-    if request.args.get("state") != stored_state:
+    if request.args.get('state') != state:
         return "State mismatch", 400
     flow.fetch_token(authorization_response=request.url)
     creds = flow.credentials
-    creds_data = {
-        "token": _json_safe(creds.token),
-        "refresh_token": _json_safe(creds.refresh_token),
-        "token_uri": _json_safe(creds.token_uri),
-        "client_id": _json_safe(creds.client_id),
-        "client_secret": _json_safe(creds.client_secret),
-        "scopes": list(creds.scopes) if getattr(creds, "scopes", None) is not None else []
+    data = {
+        'token': creds.token,
+        'refresh_token': creds.refresh_token,
+        'token_uri': creds.token_uri,
+        'client_id': creds.client_id,
+        'client_secret': creds.client_secret,
+        'scopes': creds.scopes
     }
-    # Persist credentials server-side
-    with open(TOKEN_FILE, "w") as f:
-        json.dump(creds_data, f)
-    return redirect(url_for("index"))
+    with open(TOKEN_FILE, 'w') as f:
+        json.dump(data, f)
+    return redirect(url_for('index'))
 
 def get_gmail_service():
     if not os.path.exists(TOKEN_FILE):
-        logging.info("Gmail token file missing. User must authorize via /oauth2login")
         return None
-    with open(TOKEN_FILE, "r") as f:
-        creds_data = json.load(f)
-    creds = Credentials(**creds_data)
-    # Auto-refresh access token if needed and persist the new token
-    if creds.expired:
-        if creds.refresh_token:
-            try:
-                creds.refresh(Request())
-                creds_data["token"] = _json_safe(creds.token)
-                with open(TOKEN_FILE, "w") as f:
-                    json.dump(creds_data, f)
-            except Exception as e:
-                logging.warning("Failed to refresh Gmail token: %s", e)
-                return None
-        else:
-            logging.info("Gmail credentials expired with no refresh token")
-            return None
-    return build("gmail", "v1", credentials=creds)
+    with open(TOKEN_FILE) as f:
+        data = json.load(f)
+    creds = Credentials(**data)
+    if creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+        data['token'] = creds.token
+        with open(TOKEN_FILE, 'w') as f:
+            json.dump(data, f)
+    return build('gmail', 'v1', credentials=creds)
 
-from email.mime.text import MIMEText
-
-
-def dispatch_email(to: str, subject: str, body: str):
-    """Send an email using Gmail API and return (success, info)."""
-    service = get_gmail_service()
-    if not service:
-        logging.info("Email send attempted without valid Gmail credentials")
-        return False, "Not authenticated with Gmail"
-    message = MIMEText(body)
-    message["to"] = to
-    message["subject"] = subject
-    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
-    try:
-        sent = service.users().messages().send(userId="me", body={"raw": raw}).execute()
-        return True, sent.get("id")
-    except Exception as e:
-        logging.error("Gmail send failure: %s", e)
-        return False, str(e)
-
-@app.route("/api/email/send", methods=["POST"])
-def send_email():
+@app.route('/api/send', methods=['POST'])
+def api_send_email():
     data = request.get_json() or {}
-    to      = (data.get("to") or "").strip()
-    subject = (data.get("subject") or "").strip()
-    body    = (data.get("body") or "").strip()
-
-    missing = []
-    if not to:
-        missing.append("to")
-    if not subject:
-        missing.append("subject")
-    if not body:
-        missing.append("body")
-    if missing:
-        return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
-
-    success, info = dispatch_email(to, subject, body)
-    if not success:
-        return jsonify({
-            "error": info,
-            "hint": "Visit /oauth2login to connect your Google account" if info == "Not authenticated with Gmail" else ""
-        }), 401 if info == "Not authenticated with Gmail" else 500
-    return jsonify({"messageId": info})
-
-
-@app.route("/api/email/read", methods=["GET"])
-def read_email():
+    to = data.get('to','').strip()
+    subject = data.get('subject','').strip()
+    body = data.get('body','').strip()
+    if not to or not subject or not body:
+        return jsonify({'error':'Missing to, subject, or body'}), 400
     service = get_gmail_service()
     if not service:
-        return jsonify({"error": "Not authenticated with Gmail"}), 401
-    try:
-        response = service.users().messages().list(
-            userId="me", labelIds=["INBOX"], maxResults=10
-        ).execute()
-        ids = [msg["id"] for msg in response.get("messages", [])]
-        results = []
-        for msg_id in ids:
-            msg = service.users().messages().get(
-                userId="me",
-                id=msg_id,
-                format="metadata",
-                metadataHeaders=["Subject", "From", "Date"],
-            ).execute()
-            headers = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
-            results.append({
-                "id": msg_id,
-                "subject": headers.get("Subject", ""),
-                "from": headers.get("From", ""),
-                "date": headers.get("Date", ""),
-                "snippet": msg.get("snippet", ""),
-            })
-        return jsonify({"messages": results})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({'error':'Not authenticated with Gmail'}), 401
+    msg = MIMEText(body)
+    msg['to'] = to
+    msg['subject'] = subject
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+    sent = service.users().messages().send(userId='me', body={'raw':raw}).execute()
+    return jsonify({'messageId': sent.get('id')}), 200
 
+@app.route('/api/read', methods=['GET'])
+def api_read_email():
+    service = get_gmail_service()
+    if not service:
+        return jsonify({'error':'Not authenticated with Gmail'}), 401
+    threads = service.users().messages().list(userId='me', maxResults=10).execute().get('messages', [])
+    return jsonify({'messages':threads}), 200
 
 @app.route('/api/transcribe', methods=['POST'])
 def transcribe():
-    # 1. Validate file upload
     if 'file' not in request.files:
         return jsonify({'error': 'No audio file provided'}), 400
-
     audio_file = request.files['file']
-
-    # Preserve filename for Whisper API
     audio_file.name = audio_file.filename
-
-    # Validate supported extensions
-    allowed_exts = {"mp3", "wav", "webm", "ogg", "m4a"}
-    if '.' in audio_file.filename:
-        ext = audio_file.filename.rsplit('.', 1)[1].lower()
-        if ext not in allowed_exts:
-            return jsonify({'error': 'Unsupported file type'}), 400
-
-    # —— NEW: fix for Opera GX sending video/webm ——
-    # Whisper only accepts audio/webm, not video/webm.
-    # If the browser tagged it as video/, convert to audio/.
+    allowed = {'mp3','wav','webm','ogg','m4a'}
+    ext = audio_file.filename.rsplit('.',1)[-1].lower()
+    if ext not in allowed:
+        return jsonify({'error':'Unsupported file type'}),400
     if audio_file.mimetype.startswith('video/'):
-        audio_file.mimetype     = audio_file.mimetype.replace('video/', 'audio/', 1)
-        audio_file.content_type = audio_file.content_type.replace('video/', 'audio/', 1)
-
-    # 2. Send to Whisper
+        audio_file.mimetype = audio_file.mimetype.replace('video/','audio/',1)
+        audio_file.content_type = audio_file.content_type.replace('video/','audio/',1)
     try:
-        transcript = openai.Audio.transcribe(
-            model="whisper-1",
-            file=audio_file
-        )
-        text = transcript['text']
+        transcript = openai.Audio.transcribe(model='whisper-1', file=audio_file)
+        return jsonify({'text': transcript['text']}), 200
     except Exception as e:
-        # Return exactly what Whisper reports
         return jsonify({'error': str(e)}), 500
 
-    # 3. Return the text
-    return jsonify({'text': text})
-
-
-@app.route("/")
+@app.route('/')
 def index():
-    if not session.get("logged_in"):
-        return redirect(url_for("login"))
-    # Clear the flag so the login screen shows on the next visit
-    session.pop("logged_in", None)
-    return render_template("index.html")
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    session.pop('logged_in', None)
+    return render_template('index.html')
 
-
-@app.route("/login", methods=["GET", "POST"])
+@app.route('/login', methods=['GET','POST'])
 def login():
-    if request.method == "POST":
-        user_id  = request.form.get("id", "")
-        password = request.form.get("password", "")
-        if user_id == LOGIN_ID and password == LOGIN_PASSWORD:
-            session["logged_in"] = True
-            return redirect(url_for("index"))
-        return render_template("login.html", error="Invalid credentials")
-    return render_template("login.html")
+    if request.method=='POST':
+        if request.form.get('id')==LOGIN_ID and request.form.get('password')==LOGIN_PASSWORD:
+            session['logged_in']=True
+            return redirect(url_for('index'))
+        return render_template('login.html', error='Invalid credentials')
+    return render_template('login.html')
 
-
-@app.route("/logout")
+@app.route('/logout')
 def logout():
-    """Clear login flag and redirect to the login page."""
-    session.pop("logged_in", None)
-    return redirect(url_for("login"))
+    session.pop('logged_in', None)
+    return redirect(url_for('login'))
 
-
-@app.route("/api/message", methods=["POST"])
+@app.route('/api/message', methods=['POST'])
 def message():
-    data      = request.get_json() or {}
-    user_text = data.get("text", "").strip()
-
-    # Load previous conversation from Google Sheets (if configured)
-    history = load_memory()
-    if not isinstance(history, list):
-        history = []
-
-    # Build the message list for ChatGPT
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-    messages.extend(history)
-    messages.append({"role": "user", "content": user_text})
-
-    # Log after loading so we don't duplicate the latest message
-    log_message("user", user_text)
-
-    resp = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=messages
-    )
-    raw = resp.choices[0].message.content.strip()
-
-    # Try parse JSON commands
-    try:
-        obj = json.loads(raw)
-    except json.JSONDecodeError:
-        obj = {}
-    query = obj.get("search")
-    email_cmd = obj.get("email") if isinstance(obj, dict) else None
-
-    if email_cmd:
-        to      = (email_cmd.get("to") or "").strip()
-        subject = (email_cmd.get("subject") or "").strip()
-        body    = (email_cmd.get("body") or "").strip()
-        if not (to and subject and body):
-            reply = "Email information incomplete."
-        else:
-            success, info = dispatch_email(to, subject, body)
-            reply = "Email sent." if success else f"Email error: {info}"
-    elif query:
-        # perform intelligent_search
-        try:
-            items = intelligent_search(query)
-        except RuntimeError as e:
-            reply = f"Search configuration error: {e}"
-        except Exception as e:
-            reply = f"Search error: {e}"
-        else:
-            if not items:
-                reply = f"No results found for “{query}.”"
-            else:
-                lines = [f"Top search results for “{query}”:"]
-                for i, item in enumerate(items, start=1):
-                    lines.append(f"{i}. {item['title']}\n   {item['snippet']}\n   {item['link']}")
-                reply = "\n".join(lines)
-    else:
-        reply = raw
-
-    log_message("assistant", reply)
-
-    return jsonify({"reply": reply})
-
-
-@app.route("/api/speak", methods=["POST"])
-def speak():
     data = request.get_json() or {}
-    text = data.get("text", "").strip()
-    try:
-        url = speak_text(text)
-    except Exception as e:
-        return jsonify({"url": "", "error": str(e)})
-    return jsonify({"url": url})
+    user_text = data.get('text','').strip()
+    history = load_memory() or []
+    messages = [{'role':'system','content':SYSTEM_PROMPT}]+history
+    messages.append({'role':'user','content':user_text})
+    log_message('user', user_text)
+    resp = openai.ChatCompletion.create(model='gpt-3.5-turbo', messages=messages)
+    raw = resp.choices[0].message.content.strip()
+    try: obj=json.loads(raw)
+    except: obj={}
+    search_cmd=obj.get('search')
+    email_cmd=obj.get('email')
+    if email_cmd:
+        to= email_cmd.get('to','')
+        subj=email_cmd.get('subject','')
+        bod= email_cmd.get('body','')
+        if to and subj and bod:
+            success,info=dispatch_email(to,subj,bod)
+            reply = 'Email sent.' if success else f'Email error: {info}'
+        else: reply='Email information incomplete.'
+    elif search_cmd:
+        try:
+            items=intelligent_search(search_cmd)
+            if not items: reply=f'No results found for "{search_cmd}".'
+            else:
+                lines=[f'Top search results for "{search_cmd}":']
+                for i,item in enumerate(items,1):
+                    lines.append(f"{i}. {item['title']}\n   {item['snippet']}\n   {item['link']}")
+                reply='\n'.join(lines)
+        except Exception as e:
+            reply=f'Search error: {e}'
+    else:
+        reply=raw
+    log_message('assistant', reply)
+    return jsonify({'reply':reply})
 
+@app.route('/api/speak', methods=['POST'])
+def speak():
+    data=request.get_json() or {}
+    text=data.get('text','').strip()
+    try: url=speak_text(text)
+    except Exception as e: return jsonify({'url':'','error':str(e)})
+    return jsonify({'url':url})
 
-@app.route("/api/search", methods=["POST"])
+@app.route('/api/search', methods=['POST'])
 def web_search():
-    data  = request.get_json() or {}
-    query = data.get("query", "").strip()
-    if not query:
-        return jsonify({"error":"No query provided"}), 400
+    data=request.get_json() or {}
+    q=data.get('query','').strip()
+    if not q: return jsonify({'error':'No query provided'}),400
+    try: items=intelligent_search(q)
+    except Exception as e: return jsonify({'error':str(e)}),500
+    return jsonify({'results':[{'title':it.get('title'),'snippet':it.get('snippet'),'link':it.get('link')} for it in items]})
 
-    try:
-        items = intelligent_search(query)
-    except RuntimeError as e:
-        return jsonify({"error": str(e)}), 500
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-    results = [
-        {"title": item.get("title"),
-         "snippet": item.get("snippet"),
-         "link": item.get("link")}
-        for item in items
-    ]
-    return jsonify({"results": results})
-
-
-if __name__ == "__main__":
-    port = int(os.getenv("PORT", 5002))
-    app.run(host="0.0.0.0", port=port, debug=True)
+if __name__=="__main__":
+    port=int(os.getenv('PORT',5002))
+    app.run(host='0.0.0.0',port=port,debug=True)
