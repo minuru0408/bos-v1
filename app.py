@@ -271,6 +271,8 @@ def transcribe():
 def index():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
+    # Clear the flag so the login screen shows on the next visit
+    session.pop("logged_in", None)
     return render_template("index.html")
 
 
@@ -284,6 +286,13 @@ def login():
             return redirect(url_for("index"))
         return render_template("login.html", error="Invalid credentials")
     return render_template("login.html")
+
+
+@app.route("/logout")
+def logout():
+    """Clear login flag and redirect to the login page."""
+    session.pop("logged_in", None)
+    return redirect(url_for("login"))
 
 
 @app.route("/api/message", methods=["POST"])

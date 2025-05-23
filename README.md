@@ -67,3 +67,7 @@ PORT=5001 python3 app.py
 The web interface requires a simple ID and password before showing the boot screen.
 Set `HECTOR_LOGIN_ID` and `HECTOR_LOGIN_PASSWORD` to control the accepted
 credentials. They default to `admin` and `pass`.
+
+The login state now lasts only for a single page load. Once the index page
+renders, the session is cleared so the login form reappears the next time the
+site is opened. You can also manually log out by visiting `/logout`.
