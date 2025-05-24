@@ -125,25 +125,24 @@ def get_gmail_service():
 
 import re
 
-@app.route("/api/message", methods=["POST"])
-def message():
-    data      = request.get_json() or {}
-    user_text = data.get("text", "").strip()
+def dispatch_email(to: str, subject: str, body: str):
+    """Send an email through the Gmail API and return (success, info)."""
+    service = get_gmail_service()
+    if not service:
+        return False, "Not authenticated with Gmail"
 
-    # ← NEW: catch natural‐language “send an email to …” commands
-    m = re.match(
-        r'send (?:an )?email to\s+([^\s]+)\s+with subject\s+"([^"]+)"\s+and body\s+"([^"]+)"',
-        user_text, re.IGNORECASE
-    )
-    if m:
-        to, subject, body = m.groups()
-        success, info = dispatch_email(to, subject, body)
-        reply = "Email sent, Sir." if success else f"Email error: {info}"
-        log_message("assistant", reply)
-        return jsonify({"reply": reply})
+    msg = MIMEText(body)
+    msg["to"] = to
+    msg["subject"] = subject
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
 
-    # ——— rest of your existing code ———
-    ...
+    try:
+        sent = (
+            service.users().messages().send(userId="me", body={"raw": raw}).execute()
+        )
+        return True, sent.get("id")
+    except Exception as e:
+        return False, str(e)
 
 
 @app.route('/api/send', methods=['POST'])
@@ -154,15 +153,10 @@ def api_send_email():
     body = data.get('body','').strip()
     if not to or not subject or not body:
         return jsonify({'error':'Missing to, subject, or body'}), 400
-    service = get_gmail_service()
-    if not service:
-        return jsonify({'error':'Not authenticated with Gmail'}), 401
-    msg = MIMEText(body)
-    msg['to'] = to
-    msg['subject'] = subject
-    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-    sent = service.users().messages().send(userId='me', body={'raw':raw}).execute()
-    return jsonify({'messageId': sent.get('id')}), 200
+    success, info = dispatch_email(to, subject, body)
+    if not success:
+        return jsonify({'error': info}), 401
+    return jsonify({'messageId': info}), 200
 
 @app.route('/api/read', methods=['GET'])
 def api_read_email():
