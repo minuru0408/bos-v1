@@ -202,11 +202,20 @@
       input.value = '';
 
       // send to server
-      let res = await fetch('/api/message', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({text})
-      });
-      const { reply } = await res.json();
+      let reply = 'Error: no reply';
+      try {
+        const res = await fetch('/api/message', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({text})
+        });
+        const data = await res.json().catch(async () => ({error: await res.text()}));
+        if (!res.ok) throw new Error(data.error || 'Server error');
+        reply = data.reply;
+      } catch (err) {
+        console.error(err);
+        reply = err.message;
+      }
 
       // append Hector message
       const hecDiv = document.createElement('div'); hecDiv.className = 'hector';
@@ -215,11 +224,12 @@
       chatLog.scrollTop = chatLog.scrollHeight;
 
       // speak
-      res = await fetch('/api/speak', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
+      let speakRes = await fetch('/api/speak', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
         body: JSON.stringify({text: reply})
       });
-      const { url } = await res.json();
+      const { url } = await speakRes.json();
       tts.src = url; tts.play();
     }
 
