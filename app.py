@@ -235,7 +235,27 @@ def logout():
 
 @app.route('/api/message', methods=['POST'])
 def message():
+    """Handle chat messages and dispatch Gmail actions when requested."""
     data = request.get_json() or {}
+6bbbuv-codex/integrate-openai-with-gmail-api
+    user_text = data.get("text", "").strip()
+    history = load_memory() or []
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history
+    messages.append({"role": "user", "content": user_text})
+    log_message("user", user_text)
+
+    resp = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo-0613",
+        messages=messages,
+        functions=FUNCTIONS,
+    )
+    choice = resp.choices[0]
+
+    if choice.finish_reason == "function_call":
+        func = choice.message.get("function_call", {})
+        name = func.get("name")
+        args = json.loads(func.get("arguments", "{}"))
+
     user_text = data.get('text', '').strip()
     history = load_memory() or []
     messages = [{'role': 'system', 'content': SYSTEM_PROMPT}] + history
@@ -321,7 +341,7 @@ def message():
     except Exception as e:
         logging.exception('Message handling failed')
         reply = f'Error: {e}'
-=======
+
     except Exception as e:
         logging.exception("OpenAI API call failed")
         return jsonify({'error': str(e)}), 500
@@ -338,6 +358,7 @@ def message():
         func = choice.message.get('function_call', {})
         name = func.get('name')
         args = json.loads(func.get('arguments', '{}'))
+ main
 
         if name == 'send_email':
             to = args.get('to', '')
@@ -346,6 +367,21 @@ def message():
             if to and subj and bod:
                 success, info = dispatch_email(to, subj, bod)
                 reply = 'Email sent.' if success else f'Email error: {info}'
+ 6bbbuv-codex/integrate-openai-with-gmail-api
+            else:
+                reply = 'Email information incomplete.'
+
+        elif name == "read_email":
+            count = int(args.get("count", 5))
+            service = get_gmail_service()
+            if not service:
+                reply = "Not authenticated with Gmail"
+            else:
+                msgs = service.users().messages().list(userId='me', maxResults=count).execute().get('messages', [])
+                reply = json.dumps(msgs)
+        else:
+            reply = f"Unhandled function {name}"
+
  41swmr-codex/integrate-openai-with-gmail-api
             else:
                 reply = 'Email information incomplete.'
@@ -383,6 +419,7 @@ def message():
  main
         else:
             reply = f'Unhandled function {name}'
+ main
 
     else:
         raw = choice.message.content.strip()
@@ -390,6 +427,41 @@ def message():
             obj = json.loads(raw)
         except Exception:
             obj = {}
+ 6bbbuv-codex/integrate-openai-with-gmail-api
+
+        search_cmd = obj.get("search")
+        email_cmd = obj.get("email")
+
+        if email_cmd:
+            to = email_cmd.get("to", "")
+            subj = email_cmd.get("subject", "")
+            bod = email_cmd.get("body", "")
+            if to and subj and bod:
+                success, info = dispatch_email(to, subj, bod)
+                reply = "Email sent." if success else f"Email error: {info}"
+            else:
+                reply = "Email information incomplete."
+
+        elif search_cmd:
+            try:
+                items = intelligent_search(search_cmd)
+                if not items:
+                    reply = f"No results found for \"{search_cmd}\"."
+                else:
+                    lines = [f"Top search results for \"{search_cmd}\":"]
+                    for i, item in enumerate(items, 1):
+                        lines.append(
+                            f"{i}. {item['title']}\n   {item['snippet']}\n  {item['link']}"
+                        )
+                    reply = "\n".join(lines)
+            except Exception as e:
+                reply = f"Search error: {e}"
+        else:
+            reply = raw
+
+    log_message("assistant", reply)
+    return jsonify({"reply": reply})
+
  41swmr-codex/integrate-openai-with-gmail-api
 
         search_cmd = obj.get('search')
@@ -429,23 +501,29 @@ def message():
 
     log_message('assistant', reply)
     return jsonify({'reply': reply})
+ main
 @app.route('/api/speak', methods=['POST'])
 def speak():
-    data=request.get_json() or {}
-    text=data.get('text','').strip()
-    try: url=speak_text(text)
-    except Exception as e: return jsonify({'url':'','error':str(e)})
-    return jsonify({'url':url})
+    data = request.get_json() or {}
+    text = data.get("text", "").strip()
+    try:
+        url = speak_text(text)
+    except Exception as e:
+        return jsonify({"url": "", "error": str(e)})
+    return jsonify({"url": url})
 
 @app.route('/api/search', methods=['POST'])
 def web_search():
-    data=request.get_json() or {}
-    q=data.get('query','').strip()
-    if not q: return jsonify({'error':'No query provided'}),400
-    try: items=intelligent_search(q)
-    except Exception as e: return jsonify({'error':str(e)}),500
-    return jsonify({'results':[{'title':it.get('title'),'snippet':it.get('snippet'),'link':it.get('link')} for it in items]})
+    data = request.get_json() or {}
+    q = data.get("query", "").strip()
+    if not q:
+        return jsonify({"error": "No query provided"}), 400
+    try:
+        items = intelligent_search(q)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"results": [{"title": it.get("title"), "snippet": it.get("snippet"), "link": it.get("link")} for it in items]})
 
-if __name__=="__main__":
-    port=int(os.getenv('PORT',5002))
-    app.run(host='0.0.0.0',port=port,debug=True)
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 5002))
+    app.run(host="0.0.0.0", port=port, debug=True)
