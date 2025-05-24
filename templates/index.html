@@ -27,11 +27,8 @@
     }
     #boot-screen.fade-out { opacity: 0; }
     #boot-screen img {
-      /* Increase boot GIF size by 20% */
-      width: 72vw;
-      max-width: 720px;
-      height: auto;
-      display: block;
+      width: 72vw; max-width: 720px;
+      height: auto; display: block;
     }
     #boot-text {
       margin-top: 1rem; font-size: 1.5rem; color: #fff;
@@ -134,7 +131,6 @@
     }
     #record-btn:hover,
     #conversation-btn:hover { background: #333; }
-
   </style>
 </head>
 <body>
@@ -143,7 +139,6 @@
   <div id="boot-screen">
     <img src="{{ url_for('static', filename='boot.gif') }}" alt="H.E.C.T.O.R Boot Sequence" />
     <div id="boot-text">Initializing H.E.C.T.O.R...</div>
-    <!-- Removed autoplay boot audio -->
   </div>
 
   <!-- MAIN APP -->
@@ -171,7 +166,6 @@
     window.addEventListener('DOMContentLoaded', () => {
       const boot = document.getElementById('boot-screen');
       const main = document.getElementById('main-content');
-
       setTimeout(() => {
         boot.classList.add('fade-out');
         boot.addEventListener('transitionend', () => {
@@ -183,103 +177,109 @@
 
     // CHAT & TTS
     const chatLog = document.getElementById('chat-log');
-    const input = document.getElementById('user-input');
-    const btn = document.getElementById('send-btn');
-    const orb = document.getElementById('visualizer');
-    const tts = document.getElementById('tts-player');
+    const input   = document.getElementById('user-input');
+    const btn     = document.getElementById('send-btn');
+    const orb     = document.getElementById('visualizer');
+    const tts     = document.getElementById('tts-player');
 
-    tts.addEventListener('play', () => orb.classList.add('speaking'));
+    tts.addEventListener('play',  () => orb.classList.add('speaking'));
     tts.addEventListener('ended', () => orb.classList.remove('speaking'));
 
     async function sendMessage(txt) {
       const text = typeof txt === 'string' ? txt.trim() : input.value.trim();
       if (!text) return;
+
       // append user message
-      const youDiv = document.createElement('div'); youDiv.className = 'you';
+      const youDiv = document.createElement('div');
+      youDiv.className = 'you';
       youDiv.innerHTML = `<strong>You:</strong> ${text}`;
       chatLog.appendChild(youDiv);
       chatLog.scrollTop = chatLog.scrollHeight;
       input.value = '';
 
- 8fediy-codex/integrate-openai-with-gmail-api
-      // send to server and handle errors
+      // fetch the reply
       let reply = '';
-
-      // send to server
-      let reply = 'Error: no reply';
- main
       try {
-        const res = await fetch('/api/message', {
+        const res  = await fetch('/api/message', {
           method: 'POST',
           headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({text})
+          body: JSON.stringify({ text })
         });
- 8fediy-codex/integrate-openai-with-gmail-api
         const data = await res.json();
         reply = data.reply || 'No response';
       } catch (err) {
-        reply = 'Error: ' + err.message;
-
-        const data = await res.json().catch(async () => ({error: await res.text()}));
-        if (!res.ok) throw new Error(data.error || 'Server error');
-        reply = data.reply;
-      } catch (err) {
         console.error(err);
-        reply = err.message;
- main
+        reply = 'Error: ' + err.message;
       }
 
       // append Hector message
-      const hecDiv = document.createElement('div'); hecDiv.className = 'hector';
+      const hecDiv = document.createElement('div');
+      hecDiv.className = 'hector';
       hecDiv.innerHTML = `<strong>H.E.C.T.O.R:</strong> ${reply}`;
       chatLog.appendChild(hecDiv);
       chatLog.scrollTop = chatLog.scrollHeight;
 
       // speak
- 8fediy-codex/integrate-openai-with-gmail-api
-      const res = await fetch('/api/speak', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-
-      let speakRes = await fetch('/api/speak', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
- main
-        body: JSON.stringify({text: reply})
-      });
-      const { url } = await speakRes.json();
-      tts.src = url; tts.play();
+      try {
+        const speakRes = await fetch('/api/speak', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ text: reply })
+        });
+        const { url } = await speakRes.json();
+        tts.src = url;
+        tts.play();
+      } catch (e) {
+        console.error('TTS error:', e);
+      }
     }
 
-    btn.addEventListener('click', sendMessage);
-    input.addEventListener('keydown', e => { if (e.key==='Enter') sendMessage(); });
+    btn.addEventListener('click', () => sendMessage());
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') sendMessage();
+    });
 
-    // RECORD / STOP → WHISPER (unchanged)
+    // RECORD / STOP → WHISPER
     const recordBtn = document.getElementById('record-btn');
     let mediaRecorder, audioChunks = [], isRecording = false;
     recordBtn.addEventListener('click', async () => {
       if (!isRecording) {
-        const useMp3 = MediaRecorder.isTypeSupported('audio/mpeg');
+        const useMp3   = MediaRecorder.isTypeSupported('audio/mpeg');
         const mimeType = useMp3 ? 'audio/mpeg' : 'audio/webm;codecs=opus';
-        const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-        mediaRecorder = new MediaRecorder(stream, {mimeType});
-        audioChunks = [];
+        const stream   = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream, { mimeType });
+        audioChunks   = [];
+
         mediaRecorder.addEventListener('dataavailable', e => audioChunks.push(e.data));
         mediaRecorder.addEventListener('stop', async () => {
-          const blob = new Blob(audioChunks,{type:mimeType});
-          const ext = useMp3?'mp3':'webm';
-          const file = new File([blob],`voice.${ext}`,{type:blob.type});
-          const form = new FormData(); form.append('file', file);
-          const res = await fetch(`${window.location.origin}/api/transcribe`, {method:'POST', body:form});
-          const json = await res.json(); if (json.text) input.value = json.text;
+          const blob = new Blob(audioChunks, { type: mimeType });
+          const ext  = useMp3 ? 'mp3' : 'webm';
+          const file = new File([blob], `voice.${ext}`, { type: blob.type });
+          const form = new FormData();
+          form.append('file', file);
+
+          try {
+            const res  = await fetch(`${window.location.origin}/api/transcribe`, {
+              method: 'POST', body: form
+            });
+            const json = await res.json();
+            if (json.text) input.value = json.text;
+          } catch (err) {
+            console.error('Whisper error:', err);
+          }
         });
-        mediaRecorder.start(); recordBtn.textContent='⏹ Stop'; isRecording=true;
+
+        mediaRecorder.start();
+        recordBtn.textContent = '⏹ Stop';
+        isRecording = true;
       } else {
-        mediaRecorder.stop(); recordBtn.textContent='🎤 Record'; isRecording=false;
+        mediaRecorder.stop();
+        recordBtn.textContent = '🎤 Record';
+        isRecording = false;
       }
     });
 
-    // CONVERSATION (unchanged)
-    // ...
+    // CONVERSATION MODE setup... (unchanged)
   </script>
 </body>
 </html>
