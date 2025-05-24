@@ -237,6 +237,8 @@ def logout():
 def message():
     """Handle chat messages and dispatch Gmail actions when requested."""
     data = request.get_json() or {}
+ l5s3og-codex/integrate-openai-with-gmail-api
+
 6bbbuv-codex/integrate-openai-with-gmail-api
     user_text = data.get("text", "").strip()
     history = load_memory() or []
@@ -256,11 +258,20 @@ def message():
         name = func.get("name")
         args = json.loads(func.get("arguments", "{}"))
 
+ main
     user_text = data.get('text', '').strip()
     history = load_memory() or []
     messages = [{'role': 'system', 'content': SYSTEM_PROMPT}] + history
     messages.append({'role': 'user', 'content': user_text})
     log_message('user', user_text)
+
+ l5s3og-codex/integrate-openai-with-gmail-api
+    resp = openai.ChatCompletion.create(
+        model='gpt-3.5-turbo-0613',
+        messages=messages,
+        functions=FUNCTIONS,
+        function_call='auto'
+    )
 
  8fediy-codex/integrate-openai-with-gmail-api
 
@@ -352,12 +363,16 @@ def message():
         functions=FUNCTIONS
     )
  main
+ main
     choice = resp.choices[0]
 
     if choice.finish_reason == 'function_call':
         func = choice.message.get('function_call', {})
         name = func.get('name')
         args = json.loads(func.get('arguments', '{}'))
+ l5s3og-codex/integrate-openai-with-gmail-api
+
+ main
  main
 
         if name == 'send_email':
@@ -367,6 +382,9 @@ def message():
             if to and subj and bod:
                 success, info = dispatch_email(to, subj, bod)
                 reply = 'Email sent.' if success else f'Email error: {info}'
+ l5s3og-codex/integrate-openai-with-gmail-api
+            else:
+
  6bbbuv-codex/integrate-openai-with-gmail-api
             else:
                 reply = 'Email information incomplete.'
@@ -406,6 +424,7 @@ def message():
                     reply = f'Gmail read error: {e}'
 
             else:
+ main
                 reply = 'Email information incomplete.'
 
         elif name == 'read_email':
@@ -416,9 +435,14 @@ def message():
             else:
                 msgs = service.users().messages().list(userId='me', maxResults=count).execute().get('messages', [])
                 reply = json.dumps(msgs)
+ l5s3og-codex/integrate-openai-with-gmail-api
+        else:
+            reply = f'Unhandled function {name}'
+
  main
         else:
             reply = f'Unhandled function {name}'
+ main
  main
 
     else:
@@ -427,6 +451,12 @@ def message():
             obj = json.loads(raw)
         except Exception:
             obj = {}
+ l5s3og-codex/integrate-openai-with-gmail-api
+
+        search_cmd = obj.get('search')
+        email_cmd = obj.get('email')
+
+
  6bbbuv-codex/integrate-openai-with-gmail-api
 
         search_cmd = obj.get("search")
@@ -473,6 +503,7 @@ def message():
         email_cmd = obj.get('email')
 
  main
+ main
         if email_cmd:
             to = email_cmd.get('to', '')
             subj = email_cmd.get('subject', '')
@@ -497,10 +528,16 @@ def message():
                 reply = f'Search error: {e}'
         else:
             reply = raw
+ l5s3og-codex/integrate-openai-with-gmail-api
+
+    log_message('assistant', reply)
+    return jsonify({'reply': reply})
+
  main
 
     log_message('assistant', reply)
     return jsonify({'reply': reply})
+ main
  main
 @app.route('/api/speak', methods=['POST'])
 def speak():
