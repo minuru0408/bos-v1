@@ -201,18 +201,32 @@
       chatLog.scrollTop = chatLog.scrollHeight;
       input.value = '';
 
+ 8fediy-codex/integrate-openai-with-gmail-api
       // send to server and handle errors
       let reply = '';
+
+      // send to server
+      let reply = 'Error: no reply';
+ main
       try {
         const res = await fetch('/api/message', {
           method: 'POST',
           headers: {'Content-Type':'application/json'},
           body: JSON.stringify({text})
         });
+ 8fediy-codex/integrate-openai-with-gmail-api
         const data = await res.json();
         reply = data.reply || 'No response';
       } catch (err) {
         reply = 'Error: ' + err.message;
+
+        const data = await res.json().catch(async () => ({error: await res.text()}));
+        if (!res.ok) throw new Error(data.error || 'Server error');
+        reply = data.reply;
+      } catch (err) {
+        console.error(err);
+        reply = err.message;
+ main
       }
 
       // append Hector message
@@ -222,11 +236,17 @@
       chatLog.scrollTop = chatLog.scrollHeight;
 
       // speak
+ 8fediy-codex/integrate-openai-with-gmail-api
       const res = await fetch('/api/speak', {
         method: 'POST', headers: {'Content-Type':'application/json'},
+
+      let speakRes = await fetch('/api/speak', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+ main
         body: JSON.stringify({text: reply})
       });
-      const { url } = await res.json();
+      const { url } = await speakRes.json();
       tts.src = url; tts.play();
     }
 

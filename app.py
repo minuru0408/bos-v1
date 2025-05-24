@@ -242,12 +242,17 @@ def message():
     messages.append({'role': 'user', 'content': user_text})
     log_message('user', user_text)
 
+ 8fediy-codex/integrate-openai-with-gmail-api
+
+ 41swmr-codex/integrate-openai-with-gmail-api
+ main
     try:
         resp = openai.ChatCompletion.create(
             model='gpt-3.5-turbo-0613',
             messages=messages,
             functions=FUNCTIONS
         )
+ 8fediy-codex/integrate-openai-with-gmail-api
         choice = resp.choices[0]
 
         if choice.finish_reason == 'function_call':
@@ -316,6 +321,111 @@ def message():
     except Exception as e:
         logging.exception('Message handling failed')
         reply = f'Error: {e}'
+=======
+    except Exception as e:
+        logging.exception("OpenAI API call failed")
+        return jsonify({'error': str(e)}), 500
+
+    resp = openai.ChatCompletion.create(
+        model='gpt-3.5-turbo-0613',
+        messages=messages,
+        functions=FUNCTIONS
+    )
+ main
+    choice = resp.choices[0]
+
+    if choice.finish_reason == 'function_call':
+        func = choice.message.get('function_call', {})
+        name = func.get('name')
+        args = json.loads(func.get('arguments', '{}'))
+
+        if name == 'send_email':
+            to = args.get('to', '')
+            subj = args.get('subject', '')
+            bod = args.get('body', '')
+            if to and subj and bod:
+                success, info = dispatch_email(to, subj, bod)
+                reply = 'Email sent.' if success else f'Email error: {info}'
+ 41swmr-codex/integrate-openai-with-gmail-api
+            else:
+                reply = 'Email information incomplete.'
+
+        elif name == 'read_email':
+            count = int(args.get('count', 5))
+            service = get_gmail_service()
+            if not service:
+                reply = 'Not authenticated with Gmail'
+            else:
+                try:
+                    msgs = (
+                        service.users()
+                        .messages()
+                        .list(userId='me', maxResults=count)
+                        .execute()
+                        .get('messages', [])
+                    )
+                    reply = json.dumps(msgs)
+                except Exception as e:
+                    logging.exception('Error reading Gmail')
+                    reply = f'Gmail read error: {e}'
+
+            else:
+                reply = 'Email information incomplete.'
+
+        elif name == 'read_email':
+            count = int(args.get('count', 5))
+            service = get_gmail_service()
+            if not service:
+                reply = 'Not authenticated with Gmail'
+            else:
+                msgs = service.users().messages().list(userId='me', maxResults=count).execute().get('messages', [])
+                reply = json.dumps(msgs)
+ main
+        else:
+            reply = f'Unhandled function {name}'
+
+    else:
+        raw = choice.message.content.strip()
+        try:
+            obj = json.loads(raw)
+        except Exception:
+            obj = {}
+ 41swmr-codex/integrate-openai-with-gmail-api
+
+        search_cmd = obj.get('search')
+        email_cmd = obj.get('email')
+
+
+
+        search_cmd = obj.get('search')
+        email_cmd = obj.get('email')
+
+ main
+        if email_cmd:
+            to = email_cmd.get('to', '')
+            subj = email_cmd.get('subject', '')
+            bod = email_cmd.get('body', '')
+            if to and subj and bod:
+                success, info = dispatch_email(to, subj, bod)
+                reply = 'Email sent.' if success else f'Email error: {info}'
+            else:
+                reply = 'Email information incomplete.'
+
+        elif search_cmd:
+            try:
+                items = intelligent_search(search_cmd)
+                if not items:
+                    reply = f'No results found for "{search_cmd}".'
+                else:
+                    lines = [f'Top search results for "{search_cmd}":']
+                    for i, item in enumerate(items, 1):
+                        lines.append(f"{i}. {item['title']}\n   {item['snippet']}\n  {item['link']}")
+                    reply = '\n'.join(lines)
+            except Exception as e:
+                reply = f'Search error: {e}'
+        else:
+            reply = raw
+ main
 
     log_message('assistant', reply)
     return jsonify({'reply': reply})
