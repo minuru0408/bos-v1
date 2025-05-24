@@ -201,12 +201,19 @@
       chatLog.scrollTop = chatLog.scrollHeight;
       input.value = '';
 
-      // send to server
-      let res = await fetch('/api/message', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({text})
-      });
-      const { reply } = await res.json();
+      // send to server and handle errors
+      let reply = '';
+      try {
+        const res = await fetch('/api/message', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({text})
+        });
+        const data = await res.json();
+        reply = data.reply || 'No response';
+      } catch (err) {
+        reply = 'Error: ' + err.message;
+      }
 
       // append Hector message
       const hecDiv = document.createElement('div'); hecDiv.className = 'hector';
@@ -215,7 +222,7 @@
       chatLog.scrollTop = chatLog.scrollHeight;
 
       // speak
-      res = await fetch('/api/speak', {
+      const res = await fetch('/api/speak', {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({text: reply})
       });
